@@ -26,7 +26,6 @@ import {
   fetchCaptureHtml,
   listCaptures,
   rawCaptureUrl,
-  sleep,
   type Snapshot,
 } from './model/wayback'
 import { clipFields } from './schema'
@@ -35,16 +34,33 @@ const MAX_PROFILE_PAGES = 2
 const MAX_VIDEOS_MODULE_PAGES = 100
 // Previews are plain file downloads, so a few run in parallel.
 const MEDIA_DOWNLOAD_CONCURRENCY = 4
+// Each file listing spends most of its 10-30s waiting on the Archive, so a few run
+// at once; a rate-limit response pauses all of them (see model/wayback.ts).
+const VIDEO_CHECK_CONCURRENCY = 3
 // Each phase hands over to a fresh action before running into the action time limit.
 const PHASE_TIME_BUDGET_MS = 4 * 60 * 1000
 const PHASE_BATCH_SIZE = 20
-const EMPTY_LISTING_RETRIES = 2
-const EMPTY_LISTING_RETRY_DELAY_MS = 3_000
 // Video checks the Archive errored on get another pass after these delays.
 const VIDEO_CHECK_RETRY_DELAYS_MS = [30_000, 120_000]
+// Only full-length MP4s ("720.mp4", ...) matter when listing a clip's files.
+const FULL_VIDEO_URL_PATTERN = '.*/processed/[0-9]+\\.mp4'
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
+}
+
+/** Runs `fn` over `items` with at most `limit` in flight, starting none after `deadline`. */
+async function forEachConcurrently<T>(
+  items: T[],
+  limit: number,
+  deadline: number,
+  fn: (item: T) => Promise<void>,
+) {
+  let next = 0
+  const worker = async () => {
+    while (next < items.length && Date.now() < deadline) await fn(items[next++])
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
 }
 
 /** Finds the user's archived profile pages, scrapes the clip list and stores it. */
@@ -155,11 +171,12 @@ export const saveProfile = internalMutation({
       })
     }
     // The clips are visible right away (their previews play from the Wayback Machine).
-    // Phase 1 stores copies of the previews; it then starts phase 2, the video checks.
+    // Both phases run side by side: they use different Archive endpoints.
     await ctx.scheduler.runAfter(0, internal.retrieval.downloadProfileMedia, {
       profileId,
       timestamp: profile.snapshotTimestamp,
     })
+    await ctx.scheduler.runAfter(0, internal.retrieval.checkProfileVideos, { profileId })
     return null
   },
 })
@@ -210,10 +227,9 @@ export const downloadProfileMedia = internalAction({
       })
       if (clips.length === 0) break
 
-      for (let i = 0; i < clips.length; i += MEDIA_DOWNLOAD_CONCURRENCY) {
-        const batch = clips.slice(i, i + MEDIA_DOWNLOAD_CONCURRENCY)
-        await Promise.all(batch.map((clip) => storeClipMedia(ctx, clip, timestamp)))
-      }
+      await forEachConcurrently(clips, MEDIA_DOWNLOAD_CONCURRENCY, deadline, (clip) =>
+        storeClipMedia(ctx, clip, timestamp),
+      )
 
       if (Date.now() > deadline) {
         await ctx.scheduler.runAfter(0, internal.retrieval.downloadProfileMedia, {
@@ -223,8 +239,6 @@ export const downloadProfileMedia = internalAction({
         return null
       }
     }
-
-    await ctx.scheduler.runAfter(0, internal.retrieval.checkProfileVideos, { profileId })
     return null
   },
 })
@@ -306,8 +320,9 @@ export const checkProfileVideos = internalAction({
       )
       if (clips.length === 0) break
 
-      // One at a time: the file-listing API is the Archive's most rate-limited one.
-      for (const clip of clips) await checkClipVideo(ctx, clip)
+      await forEachConcurrently(clips, VIDEO_CHECK_CONCURRENCY, deadline, (clip) =>
+        checkClipVideo(ctx, clip, attempt),
+      )
 
       if (Date.now() > deadline) {
         await ctx.scheduler.runAfter(0, internal.retrieval.checkProfileVideos, {
@@ -334,18 +349,11 @@ export const checkProfileVideos = internalAction({
   },
 })
 
-/** Lists a clip's archived files by name ("720.mp4", "preview_144.mp4", ...). */
-async function listClipFiles(cdnHost: string, mediaId: string) {
+/** Lists a clip's archived full-length videos by name ("720.mp4", "480.mp4", ...). */
+async function listClipVideos(cdnHost: string, mediaId: string) {
   const files = new Map<string, Snapshot>()
   for (const host of cdnHostVariants(cdnHost)) {
-    let captures: Snapshot[] = []
-    for (let attempt = 0; ; attempt++) {
-      captures = await listCaptures(clipMediaPrefix(host, mediaId))
-      // The Archive occasionally answers with an empty listing during hiccups, so a
-      // clip's own host is re-checked before concluding nothing was saved.
-      if (captures.length > 0 || host !== cdnHost || attempt >= EMPTY_LISTING_RETRIES) break
-      await sleep(EMPTY_LISTING_RETRY_DELAY_MS)
-    }
+    const captures = await listCaptures(clipMediaPrefix(host, mediaId), FULL_VIDEO_URL_PATTERN)
     for (const capture of captures) {
       const fileName = processedFileName(capture.url)
       if (fileName && !files.has(fileName)) files.set(fileName, capture)
@@ -355,10 +363,10 @@ async function listClipFiles(cdnHost: string, mediaId: string) {
   return files
 }
 
-async function checkClipVideo(ctx: ActionCtx, clip: Doc<'clips'>) {
+async function checkClipVideo(ctx: ActionCtx, clip: Doc<'clips'>, attempt: number) {
   let files: Map<string, Snapshot>
   try {
-    files = await listClipFiles(clip.cdnHost, clip.mediaId)
+    files = await listClipVideos(clip.cdnHost, clip.mediaId)
   } catch {
     await ctx.runMutation(internal.retrieval.saveClipVideo, {
       clipId: clip._id,
@@ -368,9 +376,12 @@ async function checkClipVideo(ctx: ActionCtx, clip: Doc<'clips'>) {
   }
   const fullVideo = pickFullVideo(files.keys())
   const videoCapture = fullVideo ? files.get(fullVideo.fileName) : undefined
+  // The Archive occasionally answers with an empty listing during hiccups, so a clip
+  // without a video is looked up once more in the delayed retry pass before giving up.
+  const notFound = attempt === 0 ? 'rechecking' : 'unavailable'
   await ctx.runMutation(internal.retrieval.saveClipVideo, {
     clipId: clip._id,
-    videoStatus: videoCapture ? 'available' : 'unavailable',
+    videoStatus: videoCapture ? 'available' : notFound,
     videoUrl: videoCapture ? rawCaptureUrl(videoCapture.timestamp, videoCapture.url) : undefined,
     videoQuality: fullVideo?.quality,
   })
@@ -379,7 +390,12 @@ async function checkClipVideo(ctx: ActionCtx, clip: Doc<'clips'>) {
 export const saveClipVideo = internalMutation({
   args: {
     clipId: v.id('clips'),
-    videoStatus: v.union(v.literal('available'), v.literal('unavailable'), v.literal('failed')),
+    videoStatus: v.union(
+      v.literal('available'),
+      v.literal('unavailable'),
+      v.literal('rechecking'),
+      v.literal('failed'),
+    ),
     videoUrl: v.optional(v.string()),
     videoQuality: v.optional(v.number()),
   },
@@ -389,17 +405,21 @@ export const saveClipVideo = internalMutation({
   },
 })
 
-/** Puts a profile's failed video checks back in the queue; returns how many. */
+/** Puts a profile's failed and to-be-rechecked video checks back in the queue; returns how many. */
 export const requeueFailedVideoChecks = internalMutation({
   args: { profileId: v.id('profiles') },
   handler: async (ctx, { profileId }) => {
-    const failed = await ctx.db
-      .query('clips')
-      .withIndex('by_profileId_and_videoStatus', (q) =>
-        q.eq('profileId', profileId).eq('videoStatus', 'failed'),
-      )
-      .take(500)
-    for (const clip of failed) await ctx.db.patch('clips', clip._id, { videoStatus: 'checking' })
-    return failed.length
+    let requeued = 0
+    for (const status of ['failed', 'rechecking'] as const) {
+      const clips = await ctx.db
+        .query('clips')
+        .withIndex('by_profileId_and_videoStatus', (q) =>
+          q.eq('profileId', profileId).eq('videoStatus', status),
+        )
+        .take(500)
+      for (const clip of clips) await ctx.db.patch('clips', clip._id, { videoStatus: 'checking' })
+      requeued += clips.length
+    }
+    return requeued
   },
 })

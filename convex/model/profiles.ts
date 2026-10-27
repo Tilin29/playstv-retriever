@@ -62,19 +62,26 @@ export async function retryFailedClips(ctx: MutationCtx, profile: Doc<'profiles'
   if (!profile.snapshotTimestamp) return
   const inProgress =
     (await clipsWithStatus(ctx, profile._id, 'mediaStatus', 'pending').first()) ??
-    (await clipsWithStatus(ctx, profile._id, 'videoStatus', 'checking').first())
+    (await clipsWithStatus(ctx, profile._id, 'videoStatus', 'checking').first()) ??
+    (await clipsWithStatus(ctx, profile._id, 'videoStatus', 'rechecking').first())
   if (inProgress) return
 
   const failedMedia = await clipsWithStatus(ctx, profile._id, 'mediaStatus', 'failed').take(500)
   const failedVideos = await clipsWithStatus(ctx, profile._id, 'videoStatus', 'failed').take(500)
-  if (failedMedia.length === 0 && failedVideos.length === 0) return
 
   for (const clip of failedMedia) await ctx.db.patch('clips', clip._id, { mediaStatus: 'pending' })
   for (const clip of failedVideos) await ctx.db.patch('clips', clip._id, { videoStatus: 'checking' })
-  await ctx.scheduler.runAfter(0, internal.retrieval.downloadProfileMedia, {
-    profileId: profile._id,
-    timestamp: profile.snapshotTimestamp,
-  })
+  if (failedMedia.length > 0) {
+    await ctx.scheduler.runAfter(0, internal.retrieval.downloadProfileMedia, {
+      profileId: profile._id,
+      timestamp: profile.snapshotTimestamp,
+    })
+  }
+  if (failedVideos.length > 0) {
+    await ctx.scheduler.runAfter(0, internal.retrieval.checkProfileVideos, {
+      profileId: profile._id,
+    })
+  }
 }
 
 /** Deletes a profile together with its clips and every stored file. */

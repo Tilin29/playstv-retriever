@@ -20,6 +20,8 @@ export const videoStatus = v.union(
   v.literal('checking'),
   v.literal('available'),
   v.literal('unavailable'),
+  // Nothing was found on the first pass; looked up once more before becoming 'unavailable'.
+  v.literal('rechecking'),
   v.literal('failed'),
 )
 
