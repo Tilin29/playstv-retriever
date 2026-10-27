@@ -8,8 +8,14 @@
  * @module
  */
 
-import type * as model_videos from "../model/videos.js";
-import type * as videos from "../videos.js";
+import type * as cleanup from "../cleanup.js";
+import type * as clips from "../clips.js";
+import type * as crons from "../crons.js";
+import type * as model_playstv from "../model/playstv.js";
+import type * as model_profiles from "../model/profiles.js";
+import type * as model_wayback from "../model/wayback.js";
+import type * as profiles from "../profiles.js";
+import type * as retrieval from "../retrieval.js";
 
 import type {
   ApiFromModules,
@@ -18,8 +24,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  "model/videos": typeof model_videos;
-  videos: typeof videos;
+  cleanup: typeof cleanup;
+  clips: typeof clips;
+  crons: typeof crons;
+  "model/playstv": typeof model_playstv;
+  "model/profiles": typeof model_profiles;
+  "model/wayback": typeof model_wayback;
+  profiles: typeof profiles;
+  retrieval: typeof retrieval;
 }>;
 
 /**
