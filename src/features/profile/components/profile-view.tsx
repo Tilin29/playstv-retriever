@@ -9,12 +9,20 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
+import { useDocumentTitle } from '@/hooks/use-document-title'
 import { ClipGrid, useClips } from '@/features/clips'
 import { useProfile, type Profile } from '../hooks/use-profile'
 import { ProfileHeader } from './profile-header'
 
 export function ProfileView({ username }: { username: string }) {
   const { profile, lookupError, retry } = useProfile(username)
+  useDocumentTitle(
+    !profile || profile.status === 'searching'
+      ? `Searching for ${username}…`
+      : profile.status === 'ready'
+        ? profile.username
+        : username,
+  )
 
   if (lookupError || profile?.status === 'error') {
     return (
