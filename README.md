@@ -11,6 +11,26 @@ npm run dev        # runs Vite and `convex dev` together
 
 Other scripts: `npm run build`, `npm run typecheck`, `npm run lint`.
 
+## Deploying (Vercel + Convex)
+
+`vercel.json` configures the build: Vercel runs `npx convex deploy`, which pushes the
+Convex functions to the production deployment and then runs `npm run build` with
+`VITE_CONVEX_URL` pointing at it. All routes rewrite to `index.html` so client-side
+routes like `/u/<name>` work on reload.
+
+One-time setup:
+
+1. Create a Convex cloud project: `npx convex login`, then `npx convex dev` and choose
+   to create a new project (this replaces the local anonymous deployment in `.env.local`).
+2. In the Convex dashboard, open the project's **Production** deployment →
+   Settings → **Generate Production Deploy Key**.
+3. Import the GitHub repo in Vercel. Under Settings → Environment Variables, add
+   `CONVEX_DEPLOY_KEY` with that key (Production environment).
+4. Deploy. Every push to `main` then deploys both the backend and the frontend.
+
+For Vercel preview deployments, add a Convex **Preview** deploy key as
+`CONVEX_DEPLOY_KEY` for the Preview environment; each preview gets its own Convex backend.
+
 ## Architecture
 
 Feature-based frontend, layered Convex backend.
