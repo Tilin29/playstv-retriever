@@ -1,10 +1,16 @@
 import { v } from 'convex/values'
 import { internal } from './_generated/api'
-import type { Id } from './_generated/dataModel'
-import { internalAction, internalMutation, type ActionCtx } from './_generated/server'
+import type { Doc, Id } from './_generated/dataModel'
+import {
+  internalAction,
+  internalMutation,
+  internalQuery,
+  type ActionCtx,
+} from './_generated/server'
 import {
   cdnHostVariants,
   clipMediaPrefix,
+  clipMediaUrl,
   parseProfilePage,
   parseVideosModulePage,
   pickFullVideo,
@@ -25,14 +31,17 @@ import {
 } from './model/wayback'
 import { clipFields } from './schema'
 
-// Clip recovery is spread out so a large profile doesn't hammer the Archive.
-const CLIP_RECOVERY_SPACING_MS = 1_500
 const MAX_PROFILE_PAGES = 2
 const MAX_VIDEOS_MODULE_PAGES = 100
+// Previews are plain file downloads, so a few run in parallel.
+const MEDIA_DOWNLOAD_CONCURRENCY = 4
+// Each phase hands over to a fresh action before running into the action time limit.
+const PHASE_TIME_BUDGET_MS = 4 * 60 * 1000
+const PHASE_BATCH_SIZE = 20
 const EMPTY_LISTING_RETRIES = 2
 const EMPTY_LISTING_RETRY_DELAY_MS = 3_000
-// When the Archive keeps erroring for a clip, try that clip again later.
-const CLIP_RECOVERY_RETRY_DELAYS_MS = [30_000, 120_000]
+// Video checks the Archive errored on get another pass after these delays.
+const VIDEO_CHECK_RETRY_DELAYS_MS = [30_000, 120_000]
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
@@ -137,19 +146,20 @@ export const saveProfile = internalMutation({
     }
     await ctx.db.patch('profiles', profileId, { ...profile, status: 'ready' })
 
-    for (const [index, clip] of clips.entries()) {
-      const clipId = await ctx.db.insert('clips', {
+    for (const clip of clips) {
+      await ctx.db.insert('clips', {
         ...clip,
         profileId,
         mediaStatus: 'pending',
         videoStatus: 'checking',
       })
-      await ctx.scheduler.runAfter(index * CLIP_RECOVERY_SPACING_MS, internal.retrieval.recoverClip, {
-        clipId,
-        cdnHost: clip.cdnHost,
-        mediaId: clip.mediaId,
-      })
     }
+    // The clips are visible right away (their previews play from the Wayback Machine).
+    // Phase 1 stores copies of the previews; it then starts phase 2, the video checks.
+    await ctx.scheduler.runAfter(0, internal.retrieval.downloadProfileMedia, {
+      profileId,
+      timestamp: profile.snapshotTimestamp,
+    })
     return null
   },
 })
@@ -169,6 +179,156 @@ export const markFailed = internalMutation({
   handler: async (ctx, { profileId, error }) => {
     if (await ctx.db.get('profiles', profileId)) {
       await ctx.db.patch('profiles', profileId, { status: 'error', error })
+    }
+    return null
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Phase 1: store copies of every clip's hover preview and thumbnail.
+// ---------------------------------------------------------------------------
+
+export const listClipsNeedingMedia = internalQuery({
+  args: { profileId: v.id('profiles') },
+  handler: async (ctx, { profileId }) => {
+    return await ctx.db
+      .query('clips')
+      .withIndex('by_profileId_and_mediaStatus', (q) =>
+        q.eq('profileId', profileId).eq('mediaStatus', 'pending'),
+      )
+      .take(PHASE_BATCH_SIZE)
+  },
+})
+
+export const downloadProfileMedia = internalAction({
+  args: { profileId: v.id('profiles'), timestamp: v.string() },
+  handler: async (ctx, { profileId, timestamp }) => {
+    const deadline = Date.now() + PHASE_TIME_BUDGET_MS
+    for (;;) {
+      const clips: Doc<'clips'>[] = await ctx.runQuery(internal.retrieval.listClipsNeedingMedia, {
+        profileId,
+      })
+      if (clips.length === 0) break
+
+      for (let i = 0; i < clips.length; i += MEDIA_DOWNLOAD_CONCURRENCY) {
+        const batch = clips.slice(i, i + MEDIA_DOWNLOAD_CONCURRENCY)
+        await Promise.all(batch.map((clip) => storeClipMedia(ctx, clip, timestamp)))
+      }
+
+      if (Date.now() > deadline) {
+        await ctx.scheduler.runAfter(0, internal.retrieval.downloadProfileMedia, {
+          profileId,
+          timestamp,
+        })
+        return null
+      }
+    }
+
+    await ctx.scheduler.runAfter(0, internal.retrieval.checkProfileVideos, { profileId })
+    return null
+  },
+})
+
+/** Downloads the first of `urls` that was archived into storage. */
+async function storeFirstArchived(ctx: ActionCtx, timestamp: string, urls: string[]) {
+  for (const url of urls) {
+    const blob = await fetchArchivedFile(timestamp, url)
+    if (blob) return await ctx.storage.store(blob)
+  }
+  return undefined
+}
+
+async function storeClipMedia(ctx: ActionCtx, clip: Doc<'clips'>, timestamp: string) {
+  let previewStorageId: Id<'_storage'> | undefined
+  let thumbnailStorageId: Id<'_storage'> | undefined
+  let failed = false
+  try {
+    previewStorageId = await storeFirstArchived(ctx, timestamp, [
+      clipMediaUrl(clip, 'preview_144.mp4'),
+    ])
+    thumbnailStorageId = await storeFirstArchived(ctx, timestamp, [
+      clipMediaUrl(clip, '480.jpg'),
+      clipMediaUrl(clip, '144.jpg'),
+    ])
+  } catch {
+    failed = true
+  }
+  await ctx.runMutation(internal.retrieval.saveClipMedia, {
+    clipId: clip._id,
+    previewStorageId,
+    thumbnailStorageId,
+    mediaStatus: previewStorageId || thumbnailStorageId ? 'stored' : failed ? 'failed' : 'missing',
+  })
+}
+
+export const saveClipMedia = internalMutation({
+  args: {
+    clipId: v.id('clips'),
+    previewStorageId: v.optional(v.id('_storage')),
+    thumbnailStorageId: v.optional(v.id('_storage')),
+    mediaStatus: v.union(v.literal('stored'), v.literal('missing'), v.literal('failed')),
+  },
+  handler: async (ctx, { clipId, ...media }) => {
+    // The profile may have been cleaned up while the download was running.
+    if (!(await ctx.db.get('clips', clipId))) {
+      await deleteFiles(ctx, [media.previewStorageId, media.thumbnailStorageId])
+      return null
+    }
+    await ctx.db.patch('clips', clipId, media)
+    return null
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Phase 2: check which clips have a full-length video in the Archive.
+// ---------------------------------------------------------------------------
+
+export const listClipsNeedingVideoCheck = internalQuery({
+  args: { profileId: v.id('profiles') },
+  handler: async (ctx, { profileId }) => {
+    return await ctx.db
+      .query('clips')
+      .withIndex('by_profileId_and_videoStatus', (q) =>
+        q.eq('profileId', profileId).eq('videoStatus', 'checking'),
+      )
+      .take(PHASE_BATCH_SIZE)
+  },
+})
+
+export const checkProfileVideos = internalAction({
+  args: { profileId: v.id('profiles'), attempt: v.optional(v.number()) },
+  handler: async (ctx, { profileId, attempt = 0 }) => {
+    const deadline = Date.now() + PHASE_TIME_BUDGET_MS
+    for (;;) {
+      const clips: Doc<'clips'>[] = await ctx.runQuery(
+        internal.retrieval.listClipsNeedingVideoCheck,
+        { profileId },
+      )
+      if (clips.length === 0) break
+
+      // One at a time: the file-listing API is the Archive's most rate-limited one.
+      for (const clip of clips) await checkClipVideo(ctx, clip)
+
+      if (Date.now() > deadline) {
+        await ctx.scheduler.runAfter(0, internal.retrieval.checkProfileVideos, {
+          profileId,
+          attempt,
+        })
+        return null
+      }
+    }
+
+    const retryDelay = VIDEO_CHECK_RETRY_DELAYS_MS[attempt]
+    if (retryDelay !== undefined) {
+      const requeued: number = await ctx.runMutation(internal.retrieval.requeueFailedVideoChecks, {
+        profileId,
+      })
+      if (requeued > 0) {
+        await ctx.scheduler.runAfter(retryDelay, internal.retrieval.checkProfileVideos, {
+          profileId,
+          attempt: attempt + 1,
+        })
+      }
     }
     return null
   },
@@ -195,104 +355,51 @@ async function listClipFiles(cdnHost: string, mediaId: string) {
   return files
 }
 
-/** Downloads the first of `fileNames` that was archived into storage. */
-async function storeFirstArchived(
-  ctx: ActionCtx,
-  files: Map<string, Snapshot>,
-  fileNames: string[],
-) {
-  for (const fileName of fileNames) {
-    const capture = files.get(fileName)
-    if (!capture) continue
-    const blob = await fetchArchivedFile(capture.timestamp, capture.url)
-    if (blob) return await ctx.storage.store(blob)
+async function checkClipVideo(ctx: ActionCtx, clip: Doc<'clips'>) {
+  let files: Map<string, Snapshot>
+  try {
+    files = await listClipFiles(clip.cdnHost, clip.mediaId)
+  } catch {
+    await ctx.runMutation(internal.retrieval.saveClipVideo, {
+      clipId: clip._id,
+      videoStatus: 'failed',
+    })
+    return
   }
-  return undefined
+  const fullVideo = pickFullVideo(files.keys())
+  const videoCapture = fullVideo ? files.get(fullVideo.fileName) : undefined
+  await ctx.runMutation(internal.retrieval.saveClipVideo, {
+    clipId: clip._id,
+    videoStatus: videoCapture ? 'available' : 'unavailable',
+    videoUrl: videoCapture ? rawCaptureUrl(videoCapture.timestamp, videoCapture.url) : undefined,
+    videoQuality: fullVideo?.quality,
+  })
 }
 
-/**
- * Checks which of a clip's files the Archive saved: records a link to the best
- * full-length video, and stores the hover preview and thumbnail.
- */
-export const recoverClip = internalAction({
+export const saveClipVideo = internalMutation({
   args: {
     clipId: v.id('clips'),
-    cdnHost: v.string(),
-    mediaId: v.string(),
-    attempt: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const { clipId, cdnHost, mediaId, attempt = 0 } = args
-    let files: Map<string, Snapshot>
-    try {
-      files = await listClipFiles(cdnHost, mediaId)
-    } catch {
-      const retryDelay = CLIP_RECOVERY_RETRY_DELAYS_MS[attempt]
-      if (retryDelay === undefined) {
-        await ctx.runMutation(internal.retrieval.markClipRecoveryFailed, { clipId })
-      } else {
-        await ctx.scheduler.runAfter(retryDelay, internal.retrieval.recoverClip, {
-          ...args,
-          attempt: attempt + 1,
-        })
-      }
-      return null
-    }
-
-    const fullVideo = pickFullVideo(files.keys())
-    const videoCapture = fullVideo ? files.get(fullVideo.fileName) : undefined
-
-    let previewStorageId: Id<'_storage'> | undefined
-    let thumbnailStorageId: Id<'_storage'> | undefined
-    let mediaFailed = false
-    try {
-      previewStorageId = await storeFirstArchived(ctx, files, ['preview_144.mp4'])
-      thumbnailStorageId = await storeFirstArchived(ctx, files, ['480.jpg', '144.jpg'])
-    } catch {
-      mediaFailed = true
-    }
-
-    await ctx.runMutation(internal.retrieval.saveClipRecovery, {
-      clipId,
-      previewStorageId,
-      thumbnailStorageId,
-      mediaStatus:
-        previewStorageId || thumbnailStorageId ? 'stored' : mediaFailed ? 'failed' : 'missing',
-      videoStatus: videoCapture ? 'available' : 'unavailable',
-      videoUrl: videoCapture ? rawCaptureUrl(videoCapture.timestamp, videoCapture.url) : undefined,
-      videoQuality: fullVideo?.quality,
-    })
-    return null
-  },
-})
-
-export const saveClipRecovery = internalMutation({
-  args: {
-    clipId: v.id('clips'),
-    previewStorageId: v.optional(v.id('_storage')),
-    thumbnailStorageId: v.optional(v.id('_storage')),
-    mediaStatus: v.union(v.literal('stored'), v.literal('missing'), v.literal('failed')),
-    videoStatus: v.union(v.literal('available'), v.literal('unavailable')),
+    videoStatus: v.union(v.literal('available'), v.literal('unavailable'), v.literal('failed')),
     videoUrl: v.optional(v.string()),
     videoQuality: v.optional(v.number()),
   },
-  handler: async (ctx, { clipId, ...recovery }) => {
-    // The profile may have been cleaned up while recovery was running.
-    if (!(await ctx.db.get('clips', clipId))) {
-      await deleteFiles(ctx, [recovery.previewStorageId, recovery.thumbnailStorageId])
-      return null
-    }
-    await ctx.db.patch('clips', clipId, recovery)
+  handler: async (ctx, { clipId, ...video }) => {
+    if (await ctx.db.get('clips', clipId)) await ctx.db.patch('clips', clipId, video)
     return null
   },
 })
 
-export const markClipRecoveryFailed = internalMutation({
-  args: { clipId: v.id('clips') },
-  handler: async (ctx, { clipId }) => {
-    if (await ctx.db.get('clips', clipId)) {
-      await ctx.db.patch('clips', clipId, { mediaStatus: 'failed', videoStatus: 'failed' })
-    }
-    return null
+/** Puts a profile's failed video checks back in the queue; returns how many. */
+export const requeueFailedVideoChecks = internalMutation({
+  args: { profileId: v.id('profiles') },
+  handler: async (ctx, { profileId }) => {
+    const failed = await ctx.db
+      .query('clips')
+      .withIndex('by_profileId_and_videoStatus', (q) =>
+        q.eq('profileId', profileId).eq('videoStatus', 'failed'),
+      )
+      .take(500)
+    for (const clip of failed) await ctx.db.patch('clips', clip._id, { videoStatus: 'checking' })
+    return failed.length
   },
 })

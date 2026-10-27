@@ -51,6 +51,13 @@ export function profilePagePriority(url: string, username: string): number | nul
   return match[2] ? 0 : 1
 }
 
+export function clipMediaUrl(
+  clip: { cdnHost: string; mediaId: string },
+  file: 'preview_144.mp4' | '480.jpg' | '144.jpg',
+) {
+  return `https://${clip.cdnHost}/video/${clip.mediaId}/processed/${file}`
+}
+
 /** Prefix covering every processed file of a clip, e.g. "d1playscdntv-a.akamaihd.net/video/<id>/". */
 export function clipMediaPrefix(cdnHost: string, mediaId: string) {
   return `${cdnHost}/video/${mediaId}/`

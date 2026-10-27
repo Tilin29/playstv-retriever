@@ -2,9 +2,6 @@ import { internal } from '../_generated/api'
 import type { Doc, Id } from '../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../_generated/server'
 
-// Retried clips are spread out so they don't hit the Archive all at once.
-const CLIP_RETRY_SPACING_MS = 1_500
-
 /** Retrieved profiles, clips and their files are deleted after this long. */
 export const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -36,28 +33,48 @@ export async function deleteFiles(ctx: MutationCtx, storageIds: (Id<'_storage'> 
   }
 }
 
+function clipsWithStatus(
+  ctx: QueryCtx,
+  profileId: Id<'profiles'>,
+  field: 'mediaStatus' | 'videoStatus',
+  status: Doc<'clips'>['mediaStatus'] | Doc<'clips'>['videoStatus'],
+) {
+  if (field === 'mediaStatus') {
+    return ctx.db
+      .query('clips')
+      .withIndex('by_profileId_and_mediaStatus', (q) =>
+        q.eq('profileId', profileId).eq('mediaStatus', status as Doc<'clips'>['mediaStatus']),
+      )
+  }
+  return ctx.db
+    .query('clips')
+    .withIndex('by_profileId_and_videoStatus', (q) =>
+      q.eq('profileId', profileId).eq('videoStatus', status as Doc<'clips'>['videoStatus']),
+    )
+}
+
 /**
  * Re-queues clips whose recovery failed because the Archive errored (as opposed
  * to clips it simply never saved), so a later visit can still recover them.
+ * Does nothing while the profile's downloads and checks are still running.
  */
-export async function retryFailedClips(ctx: MutationCtx, profileId: Id<'profiles'>) {
-  const clips = ctx.db
-    .query('clips')
-    .withIndex('by_profileId_and_uploadedAt', (q) => q.eq('profileId', profileId))
-  let retried = 0
-  for await (const clip of clips) {
-    if (clip.videoStatus !== 'failed') continue
-    await ctx.db.patch('clips', clip._id, {
-      videoStatus: 'checking',
-      mediaStatus: clip.mediaStatus === 'failed' ? 'pending' : clip.mediaStatus,
-    })
-    await ctx.scheduler.runAfter(retried * CLIP_RETRY_SPACING_MS, internal.retrieval.recoverClip, {
-      clipId: clip._id,
-      cdnHost: clip.cdnHost,
-      mediaId: clip.mediaId,
-    })
-    retried++
-  }
+export async function retryFailedClips(ctx: MutationCtx, profile: Doc<'profiles'>) {
+  if (!profile.snapshotTimestamp) return
+  const inProgress =
+    (await clipsWithStatus(ctx, profile._id, 'mediaStatus', 'pending').first()) ??
+    (await clipsWithStatus(ctx, profile._id, 'videoStatus', 'checking').first())
+  if (inProgress) return
+
+  const failedMedia = await clipsWithStatus(ctx, profile._id, 'mediaStatus', 'failed').take(500)
+  const failedVideos = await clipsWithStatus(ctx, profile._id, 'videoStatus', 'failed').take(500)
+  if (failedMedia.length === 0 && failedVideos.length === 0) return
+
+  for (const clip of failedMedia) await ctx.db.patch('clips', clip._id, { mediaStatus: 'pending' })
+  for (const clip of failedVideos) await ctx.db.patch('clips', clip._id, { videoStatus: 'checking' })
+  await ctx.scheduler.runAfter(0, internal.retrieval.downloadProfileMedia, {
+    profileId: profile._id,
+    timestamp: profile.snapshotTimestamp,
+  })
 }
 
 /** Deletes a profile together with its clips and every stored file. */

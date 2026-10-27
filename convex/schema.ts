@@ -55,5 +55,8 @@ export default defineSchema({
     videoStatus: videoStatus,
     videoUrl: v.optional(v.string()),
     videoQuality: v.optional(v.number()),
-  }).index('by_profileId_and_uploadedAt', ['profileId', 'uploadedAt']),
+  })
+    .index('by_profileId_and_uploadedAt', ['profileId', 'uploadedAt'])
+    .index('by_profileId_and_mediaStatus', ['profileId', 'mediaStatus'])
+    .index('by_profileId_and_videoStatus', ['profileId', 'videoStatus']),
 })

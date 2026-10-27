@@ -7,7 +7,15 @@ import type { Profile } from '../hooks/use-profile'
 import { formatExpiry, formatSnapshotDate } from '../lib/format'
 
 export function ProfileHeader({ profile, clips }: { profile: Profile; clips: Clip[] | undefined }) {
-  const pending = clips?.filter((clip) => clip.mediaStatus === 'pending').length ?? 0
+  const total = clips?.length ?? 0
+  const savingPreviews = clips?.filter((clip) => clip.mediaStatus === 'pending').length ?? 0
+  const checkingVideos = clips?.filter((clip) => clip.videoStatus === 'checking').length ?? 0
+  const progress =
+    savingPreviews > 0
+      ? `Saving previews… ${total - savingPreviews} of ${total}`
+      : checkingVideos > 0
+        ? `Checking for full videos… ${total - checkingVideos} of ${total}`
+        : null
   const facts = [
     clips ? `${clips.length} ${clips.length === 1 ? 'clip' : 'clips'}` : null,
     profile.snapshotTimestamp ? `Archived ${formatSnapshotDate(profile.snapshotTimestamp)}` : null,
@@ -29,10 +37,10 @@ export function ProfileHeader({ profile, clips }: { profile: Profile; clips: Cli
           </p>
         )}
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          {pending > 0 ? (
+          {progress ? (
             <>
               <Spinner />
-              Downloading previews… {clips!.length - pending} of {clips!.length}
+              {progress}
             </>
           ) : (
             `Saved here until ${formatExpiry(profile.expiresAt)}`

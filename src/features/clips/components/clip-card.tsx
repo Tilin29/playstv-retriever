@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { ImageOffIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import type { Clip } from '../hooks/use-clips'
 import { formatDate, formatDuration } from '../lib/format'
@@ -15,6 +14,12 @@ const VIDEO_STATUS_NOTES: Partial<Record<Clip['videoStatus'], string>> = {
 
 export function ClipCard({ clip }: { clip: Clip }) {
   const [previewing, setPreviewing] = useState(false)
+  // Media that failed to load (e.g. the Archive timing out). A stored copy has a
+  // different URL, so it is tried again once it arrives.
+  const [brokenUrls, setBrokenUrls] = useState<ReadonlySet<string>>(new Set())
+  const thumbnailUrl =
+    clip.thumbnailUrl && !brokenUrls.has(clip.thumbnailUrl) ? clip.thumbnailUrl : null
+  const previewUrl = clip.previewUrl && !brokenUrls.has(clip.previewUrl) ? clip.previewUrl : null
   const videoUrl = clip.videoStatus === 'available' ? clip.videoUrl : null
   const unrecoverable = clip.videoStatus === 'unavailable' || clip.videoStatus === 'failed'
 
@@ -33,27 +38,26 @@ export function ClipCard({ clip }: { clip: Clip }) {
       )}
     >
       <div className="relative aspect-video bg-muted">
-        {clip.mediaStatus === 'pending' ? (
-          <Skeleton className="absolute inset-0 rounded-none" />
-        ) : clip.thumbnailUrl ? (
+        <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+          <ImageOffIcon />
+        </div>
+        {thumbnailUrl && (
           <img
-            src={clip.thumbnailUrl}
+            src={thumbnailUrl}
             alt=""
             loading="lazy"
+            onError={() => setBrokenUrls((urls) => new Set(urls).add(thumbnailUrl))}
             className="absolute inset-0 size-full object-cover"
           />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-            <ImageOffIcon />
-          </div>
         )}
-        {previewing && clip.previewUrl && (
+        {previewing && previewUrl && (
           <video
-            src={clip.previewUrl}
+            src={previewUrl}
             autoPlay
             muted
             loop
             playsInline
+            onError={() => setBrokenUrls((urls) => new Set(urls).add(previewUrl))}
             className="absolute inset-0 size-full object-cover"
           />
         )}
