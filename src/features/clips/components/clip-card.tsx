@@ -7,6 +7,12 @@ import { cn } from '@/lib/utils'
 import type { Clip } from '../hooks/use-clips'
 import { formatDate, formatDuration } from '../lib/format'
 
+const VIDEO_STATUS_NOTES: Partial<Record<Clip['videoStatus'], string>> = {
+  checking: 'Checking the archive…',
+  unavailable: "Couldn't be recovered",
+  failed: "The archive didn't respond – retrying on your next visit",
+}
+
 export function ClipCard({ clip }: { clip: Clip }) {
   const [previewing, setPreviewing] = useState(false)
   const videoUrl = clip.videoStatus === 'available' ? clip.videoUrl : null
@@ -15,8 +21,7 @@ export function ClipCard({ clip }: { clip: Clip }) {
   const details = [
     clip.uploadedAt !== null ? formatDate(clip.uploadedAt) : null,
     videoUrl && clip.videoQuality ? `${clip.videoQuality}p` : null,
-    clip.videoStatus === 'checking' ? 'Checking the archive…' : null,
-    unrecoverable ? "Couldn't be recovered" : null,
+    VIDEO_STATUS_NOTES[clip.videoStatus],
   ].filter(Boolean)
 
   const card = (

@@ -22,6 +22,12 @@ export function ProfileHeader({ profile, clips }: { profile: Profile; clips: Cli
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <h1 className="truncate text-2xl font-semibold tracking-tight">{profile.username}</h1>
         <p className="text-sm text-muted-foreground">{facts.join(' · ')}</p>
+        {profile.clipListIncomplete && (
+          <p className="text-sm text-muted-foreground">
+            The Wayback Machine stopped responding while listing older clips, so some may be
+            missing.
+          </p>
+        )}
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           {pending > 0 ? (
             <>

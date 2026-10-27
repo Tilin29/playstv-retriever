@@ -42,6 +42,8 @@ export default defineSchema({
     snapshotTimestamp: v.optional(v.string()),
     snapshotUrl: v.optional(v.string()),
     avatarStorageId: v.optional(v.id('_storage')),
+    // True when the Archive failed partway through the "load more" pages.
+    clipListIncomplete: v.optional(v.boolean()),
   }).index('by_usernameKey', ['usernameKey']),
 
   clips: defineTable({

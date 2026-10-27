@@ -6,10 +6,13 @@ import {
   cdnHostVariants,
   clipMediaPrefix,
   parseProfilePage,
+  parseVideosModulePage,
   pickFullVideo,
   processedFileName,
   profilePagePriority,
+  videosModuleUrl,
   type ParsedClip,
+  type VideosModuleConfig,
 } from './model/playstv'
 import { deleteFiles } from './model/profiles'
 import {
@@ -25,8 +28,11 @@ import { clipFields } from './schema'
 // Clip recovery is spread out so a large profile doesn't hammer the Archive.
 const CLIP_RECOVERY_SPACING_MS = 1_500
 const MAX_PROFILE_PAGES = 2
+const MAX_VIDEOS_MODULE_PAGES = 100
 const EMPTY_LISTING_RETRIES = 2
 const EMPTY_LISTING_RETRY_DELAY_MS = 3_000
+// When the Archive keeps erroring for a clip, try that clip again later.
+const CLIP_RECOVERY_RETRY_DELAYS_MS = [30_000, 120_000]
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
@@ -46,20 +52,43 @@ export const retrieveProfile = internalAction({
       // Clips are merged across pages; the best-ranked page supplies name and avatar.
       let primary: { snapshot: Snapshot; displayName: string | null; avatarUrl: string | null } | null =
         null
+      let nextVideosPage: { snapshot: Snapshot; config: VideosModuleConfig } | null = null
       const clips = new Map<string, ParsedClip>()
+      const addClips = (parsed: ParsedClip[]) => {
+        for (const clip of parsed) {
+          if (!clips.has(clip.videoId)) clips.set(clip.videoId, clip)
+        }
+      }
       for (const { snapshot } of pages) {
         const html = await fetchCaptureHtml(snapshot)
         if (!html) continue
         const parsed = parseProfilePage(html)
         primary ??= { snapshot, displayName: parsed.displayName, avatarUrl: parsed.avatarUrl }
-        for (const clip of parsed.clips) {
-          if (!clips.has(clip.videoId)) clips.set(clip.videoId, clip)
-        }
+        if (parsed.nextVideosPage) nextVideosPage ??= { snapshot, config: parsed.nextVideosPage }
+        addClips(parsed.clips)
       }
 
       if (!primary) {
         await ctx.runMutation(internal.retrieval.markNotFound, { profileId })
         return null
+      }
+
+      // Profile pages only show the newest clips; older ones came from "load more"
+      // requests, which the Archive captured separately. Follow them until they run out.
+      let clipListIncomplete = false
+      for (let page = 0; nextVideosPage && page < MAX_VIDEOS_MODULE_PAGES; page++) {
+        const { snapshot, config } = nextVideosPage
+        let json: string | null
+        try {
+          json = await fetchCaptureHtml({ timestamp: snapshot.timestamp, url: videosModuleUrl(config) })
+        } catch {
+          clipListIncomplete = true
+          break
+        }
+        if (!json) break
+        const parsed = parseVideosModulePage(json)
+        addClips(parsed.clips)
+        nextVideosPage = parsed.nextVideosPage ? { snapshot, config: parsed.nextVideosPage } : null
       }
 
       let avatarStorageId: Id<'_storage'> | undefined
@@ -78,6 +107,7 @@ export const retrieveProfile = internalAction({
         snapshotTimestamp: primary.snapshot.timestamp,
         snapshotUrl: primary.snapshot.url,
         avatarStorageId,
+        clipListIncomplete,
         clips: [...clips.values()],
       })
     } catch (error) {
@@ -97,6 +127,7 @@ export const saveProfile = internalMutation({
     snapshotTimestamp: v.string(),
     snapshotUrl: v.string(),
     avatarStorageId: v.optional(v.id('_storage')),
+    clipListIncomplete: v.boolean(),
     clips: v.array(v.object(clipFields)),
   },
   handler: async (ctx, { profileId, clips, ...profile }) => {
@@ -188,13 +219,23 @@ export const recoverClip = internalAction({
     clipId: v.id('clips'),
     cdnHost: v.string(),
     mediaId: v.string(),
+    attempt: v.optional(v.number()),
   },
-  handler: async (ctx, { clipId, cdnHost, mediaId }) => {
+  handler: async (ctx, args) => {
+    const { clipId, cdnHost, mediaId, attempt = 0 } = args
     let files: Map<string, Snapshot>
     try {
       files = await listClipFiles(cdnHost, mediaId)
     } catch {
-      await ctx.runMutation(internal.retrieval.markClipRecoveryFailed, { clipId })
+      const retryDelay = CLIP_RECOVERY_RETRY_DELAYS_MS[attempt]
+      if (retryDelay === undefined) {
+        await ctx.runMutation(internal.retrieval.markClipRecoveryFailed, { clipId })
+      } else {
+        await ctx.scheduler.runAfter(retryDelay, internal.retrieval.recoverClip, {
+          ...args,
+          attempt: attempt + 1,
+        })
+      }
       return null
     }
 

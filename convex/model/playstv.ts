@@ -13,6 +13,16 @@ export type ParsedProfilePage = {
   displayName: string | null
   avatarUrl: string | null
   clips: ParsedClip[]
+  /** Config for fetching the next batch of clips ("load more"), if the page had one. */
+  nextVideosPage: VideosModuleConfig | null
+}
+
+/** The UserVideosMod config Plays.tv sent to /ws/module to load more clips. */
+export type VideosModuleConfig = Record<string, string>
+
+export type ParsedVideosModulePage = {
+  clips: ParsedClip[]
+  nextVideosPage: VideosModuleConfig | null
 }
 
 type VideoObject = {
@@ -93,12 +103,97 @@ export function parseProfilePage(html: string): ParsedProfilePage {
     }
   }
 
+  // The HTML list can hold clips the JSON-LD block left out.
+  for (const clip of parseVideoListItems(html)) {
+    if (!clips.has(clip.videoId)) clips.set(clip.videoId, clip)
+  }
+
   const ogTitle = readMeta(html, 'og:title')
   const displayName = ogTitle?.replace(/^Plays\.tv\s*-\s*/i, '').trim() || null
   const ogImage = readMeta(html, 'og:image')
   const avatarUrl = ogImage ? absoluteUrl(ogImage) : null
 
-  return { displayName, avatarUrl, clips: [...clips.values()] }
+  return {
+    displayName,
+    avatarUrl,
+    clips: [...clips.values()],
+    nextVideosPage: parseVideosModuleConfig(html),
+  }
+}
+
+const VIDEOS_MODULE_CONF_PATTERN = /data-module-id="UserVideosMod"[^>]*?data-conf='([^']*)'/
+
+function parseVideosModuleConfig(html: string): VideosModuleConfig | null {
+  const json = VIDEOS_MODULE_CONF_PATTERN.exec(html)?.[1]
+  if (!json) return null
+  try {
+    return toVideosModuleConfig(JSON.parse(decodeHtmlEntities(json)))
+  } catch {
+    return null
+  }
+}
+
+function toVideosModuleConfig(config: unknown): VideosModuleConfig | null {
+  if (!config || typeof config !== 'object') return null
+  const entries = Object.entries(config).map(([key, value]) => [key, String(value)])
+  const result = Object.fromEntries(entries) as VideosModuleConfig
+  return result.target_user_id && result.last_id ? result : null
+}
+
+/** The /ws/module URL Plays.tv requested to load the clips after `config.last_id`. */
+export function videosModuleUrl(config: VideosModuleConfig) {
+  const params = new URLSearchParams({ ...config, format: 'application/json', id: 'UserVideosMod' })
+  return `https://plays.tv/ws/module?${params}`
+}
+
+/** Parses a "load more" response: a JSON envelope whose `body` is the clip list HTML. */
+export function parseVideosModulePage(json: string): ParsedVideosModulePage {
+  let data: { body?: unknown; config?: unknown }
+  try {
+    data = JSON.parse(json)
+  } catch {
+    return { clips: [], nextVideosPage: null }
+  }
+  const clips = typeof data.body === 'string' ? parseVideoListItems(data.body) : []
+  return {
+    clips,
+    nextVideosPage: clips.length > 0 ? toVideosModuleConfig(data.config) : null,
+  }
+}
+
+const VIDEO_ITEM_PATTERN = /<li class="video-item" data-feed-id="([A-Za-z0-9]+)">([\s\S]*?)<\/li>/g
+const ITEM_MEDIA_PATTERN = /<source src="(\/\/[^/"]+\/video\/[^/"]+\/processed\/)/
+const ITEM_THUMBNAIL_PATTERN = /data-lazyload="(\/\/[^/"]+\/video\/[^/"]+\/processed\/)/
+const ITEM_TITLE_PATTERN = /class="title">([^<]*)</
+const ITEM_DURATION_PATTERN = /class="duration[^"]*">([\d:]+)</
+const ITEM_CREATED_PATTERN = /class="created">([^<]+)</
+
+/** Parses the `<li class="video-item">` entries of a Plays.tv clip list. */
+function parseVideoListItems(html: string): ParsedClip[] {
+  const clips: ParsedClip[] = []
+  for (const [, videoId, item] of html.matchAll(VIDEO_ITEM_PATTERN)) {
+    const mediaPath = ITEM_MEDIA_PATTERN.exec(item)?.[1] ?? ITEM_THUMBNAIL_PATTERN.exec(item)?.[1]
+    const media = mediaPath ? MEDIA_URL_PATTERN.exec(mediaPath) : null
+    if (!media) continue
+
+    const created = ITEM_CREATED_PATTERN.exec(item)?.[1]
+    const uploadedAt = created ? Date.parse(created) : NaN
+    clips.push({
+      videoId,
+      cdnHost: media[1],
+      mediaId: media[2],
+      title: decodeHtmlEntities(ITEM_TITLE_PATTERN.exec(item)?.[1]?.trim() || 'Untitled clip'),
+      durationSeconds: parseClockDuration(ITEM_DURATION_PATTERN.exec(item)?.[1]),
+      uploadedAt: Number.isNaN(uploadedAt) ? undefined : uploadedAt,
+    })
+  }
+  return clips
+}
+
+/** Parses "1:02:03" / "4:05" style durations into seconds. */
+function parseClockDuration(duration: string | undefined): number | undefined {
+  if (!duration) return undefined
+  return duration.split(':').reduce((total, part) => total * 60 + Number(part), 0)
 }
 
 function parseVideoObject(video: VideoObject): ParsedClip | null {
