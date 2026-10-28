@@ -49,6 +49,14 @@ export const reportStatus = v.union(
   v.literal('actioned'),
 )
 
+export const clipLinkStatus = v.union(
+  v.literal('searching'),
+  v.literal('found'),
+  // The Archive has no copy of the clip's page.
+  v.literal('not_found'),
+  v.literal('error'),
+)
+
 export const clipFields = {
   videoId: v.string(),
   mediaId: v.string(),
@@ -108,7 +116,9 @@ export default defineSchema({
     .index('by_videoStatus_and_uploadedAt', ['videoStatus', 'uploadedAt'])
     .index('by_videoStatus_and_gameId_and_uploadedAt', ['videoStatus', 'gameId', 'uploadedAt'])
     .index('by_videoStatus', ['videoStatus'])
-    .index('by_videoStatus_and_gameId', ['videoStatus', 'gameId']),
+    .index('by_videoStatus_and_gameId', ['videoStatus', 'gameId'])
+    // Finds the clip a pasted plays.tv/video/<videoId> link points to.
+    .index('by_videoId', ['videoId']),
 
   // One row per game seen in a clip list, for the feed's game filter.
   games: defineTable({
@@ -119,6 +129,32 @@ export default defineSchema({
   })
     .index('by_gameId', ['gameId'])
     .index('by_recoveredCount', ['recoveredCount']),
+
+  // A pasted clip link being looked up (see model/clipLinks.ts). Once its clip is
+  // stored, the clip itself answers the link and this row only remembers the outcome.
+  clipLinks: defineTable({
+    videoId: v.string(),
+    status: clipLinkStatus,
+    // Read from the clip's archived page, while its owner's profile is still being
+    // retrieved; the clip is added to the profile once it's ready.
+    waiting: v.optional(
+      v.object({
+        profileId: v.id('profiles'),
+        clip: v.object(clipFields),
+        snapshotTimestamp: v.string(),
+        snapshotUrl: v.string(),
+      }),
+    ),
+  })
+    .index('by_videoId', ['videoId'])
+    .index('by_waiting_profileId', ['waiting.profileId']),
+
+  // A pasted share link (plays.tv/s/<code>) and the clip it redirected to, once known.
+  shortLinks: defineTable({
+    code: v.string(),
+    status: clipLinkStatus,
+    videoId: v.optional(v.string()),
+  }).index('by_code', ['code']),
 
   // A visitor flagging a clip. Anonymous: nothing about the reporter is kept.
   reports: defineTable({

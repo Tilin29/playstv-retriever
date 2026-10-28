@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { ClipLinksButton } from '@/features/clip-links'
 import { RecentProfiles } from '@/features/recent-profiles'
 import { UsernameSearchForm } from '@/features/user-search'
 
@@ -18,7 +19,10 @@ function HomePage() {
           Machine. Search a username to see what can still be recovered.
         </p>
       </div>
-      <UsernameSearchForm autoFocus />
+      <div className="flex w-full flex-col items-center gap-3">
+        <UsernameSearchForm autoFocus />
+        <ClipLinksButton variant="ghost" />
+      </div>
       <p className="text-sm text-muted-foreground">
         Not affiliated with Plays.tv or the Internet Archive.
       </p>

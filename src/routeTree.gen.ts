@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminManageRouteImport } from './routes/admin-manage'
 import { Route as FeedRouteImport } from './routes/feed'
+import { Route as LookupRouteImport } from './routes/lookup'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const FeedRoute = FeedRouteImport.update({
   path: '/feed',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LookupRoute = LookupRouteImport.update({
+  id: '/lookup',
+  path: '/lookup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UUsernameRoute = UUsernameRouteImport.update({
   id: '/u/$username',
   path: '/u/$username',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin-manage': typeof AdminManageRoute
   '/feed': typeof FeedRoute
+  '/lookup': typeof LookupRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin-manage': typeof AdminManageRoute
   '/feed': typeof FeedRoute
+  '/lookup': typeof LookupRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin-manage': typeof AdminManageRoute
   '/feed': typeof FeedRoute
+  '/lookup': typeof LookupRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin-manage' | '/feed' | '/u/$username'
+  fullPaths: '/' | '/admin-manage' | '/feed' | '/lookup' | '/u/$username'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin-manage' | '/feed' | '/u/$username'
-  id: '__root__' | '/' | '/admin-manage' | '/feed' | '/u/$username'
+  to: '/' | '/admin-manage' | '/feed' | '/lookup' | '/u/$username'
+  id: '__root__' | '/' | '/admin-manage' | '/feed' | '/lookup' | '/u/$username'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminManageRoute: typeof AdminManageRoute
   FeedRoute: typeof FeedRoute
+  LookupRoute: typeof LookupRoute
   UUsernameRoute: typeof UUsernameRoute
 }
 
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FeedRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lookup': {
+      id: '/lookup'
+      path: '/lookup'
+      fullPath: '/lookup'
+      preLoaderRoute: typeof LookupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/u/$username': {
       id: '/u/$username'
       path: '/u/$username'
@@ -106,6 +123,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminManageRoute: AdminManageRoute,
   FeedRoute: FeedRoute,
+  LookupRoute: LookupRoute,
   UUsernameRoute: UUsernameRoute,
 }
 export const routeTree = rootRouteImport

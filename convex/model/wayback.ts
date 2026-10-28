@@ -114,17 +114,20 @@ export async function listCaptures(
   gate: ArchiveGate,
   urlPrefix: string,
   originalPattern?: string,
+  /** `statusCode`: which responses to list (default 200). `to`: captured no later than this. */
+  { statusCode = 200, to }: { statusCode?: number; to?: string } = {},
 ): Promise<Snapshot[]> {
   const params = new URLSearchParams({
     url: urlPrefix,
     matchType: 'prefix',
     output: 'json',
     fl: 'timestamp,original',
-    filter: 'statuscode:200',
+    filter: `statuscode:${statusCode}`,
     collapse: 'urlkey',
     limit: '1000',
   })
   if (originalPattern) params.append('filter', `original:${originalPattern}`)
+  if (to) params.set('to', to)
   const body = await getText(gate, 'cdx', `${WAYBACK_ORIGIN}/cdx/search/cdx?${params}`)
   if (!body?.trim()) return []
   const rows = JSON.parse(body) as string[][]
@@ -155,6 +158,41 @@ export async function findCapture(
     }
     if (response.headers.get('content-type')?.includes('text/html')) return null
     return parseRawCaptureUrl(response.url) ?? { timestamp, url: originalUrl }
+  })
+}
+
+/**
+ * Downloads the capture of a page closest to `timestamp`, following the Archive's
+ * redirect to it. Returns null when the page was never archived.
+ */
+export async function fetchClosestCaptureHtml(
+  gate: ArchiveGate,
+  timestamp: string,
+  originalUrl: string,
+): Promise<{ snapshot: Snapshot; html: string } | null> {
+  return withRetries(async () => {
+    const response = await get(gate, 'replay', rawCaptureUrl(timestamp, originalUrl))
+    if (!response) return null
+    const html = await response.text()
+    assertOnline(html)
+    const snapshot = parseRawCaptureUrl(response.url) ?? { timestamp, url: originalUrl }
+    return { snapshot, html }
+  })
+}
+
+/** Where a captured redirect (e.g. a 301) pointed, as an original URL. Null if it wasn't one. */
+export async function findRedirectTarget(
+  gate: ArchiveGate,
+  snapshot: Snapshot,
+): Promise<string | null> {
+  return withRetries(async () => {
+    const response = await get(gate, 'replay', rawCaptureUrl(snapshot.timestamp, snapshot.url), {
+      method: 'HEAD',
+      redirect: 'manual',
+    })
+    const location = response && isRedirect(response) ? response.headers.get('location') : null
+    if (!location) return null
+    return parseRawCaptureUrl(new URL(location, WAYBACK_ORIGIN).href)?.url ?? null
   })
 }
 

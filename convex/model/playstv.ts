@@ -61,6 +61,9 @@ export function clipMediaUrl(
   return `https://${clip.cdnHost}/video/${clip.mediaId}/processed/${file}`
 }
 
+/** Archive lookups ask for the capture closest to Plays.tv's shutdown. */
+export const PLAYSTV_SHUTDOWN_TIMESTAMP = '20191215'
+
 /** Full-length MP4 qualities Plays.tv encoded, best first. */
 export const FULL_VIDEO_QUALITIES = [1080, 720, 480] as const
 
@@ -189,6 +192,96 @@ function parseVideoListItems(html: string): ParsedClip[] {
     })
   }
   return clips
+}
+
+/** A clip's page id in a pasted link: plays.tv/video/<id>/<slug> or plays.tv/embeds/<id>. */
+export const CLIP_LINK_PATTERN = /plays\.tv\/(?:video|embeds)\/([A-Za-z0-9]{6,32})/i
+export const CLIP_VIDEO_ID_PATTERN = /^[A-Za-z0-9]{6,32}$/
+/** A share link, plays.tv/s/<code>, which redirected to the clip's page. */
+export const SHORT_LINK_CODE_PATTERN = /^[A-Za-z0-9_-]{6,32}$/
+
+export function shortLinkUrl(code: string) {
+  return `plays.tv/s/${code}`
+}
+
+/** Archived URLs that show a single clip, best first. */
+export function clipPageUrls(videoId: string) {
+  return [`https://plays.tv/embeds/${videoId}`, `https://plays.tv/video/${videoId}`]
+}
+
+export type ParsedClipPage = { clip: ParsedClip; ownerUsername: string }
+
+// Clip pages came in two layouts: the 2019 embed page (/embeds/<id>) and the older video
+// page (/video/<id>), which keeps most of its markup in escaped script strings. Video
+// pages also list related clips, so only markup that belongs to the clip itself is read.
+const PAGE_MEDIA_PATTERN = /(\/\/[^/"'\s]+\/video\/[^/"'\s]+\/processed\/)/
+const PAGE_OG_IMAGE_PATTERN = /property="og:image" content="([^"]*\/video\/[^"/]+\/processed\/)/
+const PAGE_OWNER_PATTERNS = [
+  /class="video-author"><a href="\/u\/([^"/?#]+)/,
+  /"original_author_urlname":"([^"]+)"/,
+  /property="og:description" content="Posted by ([^"]+)"/,
+]
+const PAGE_TITLE_PATTERN = /class="video-title"><a [^>]*>([^<]*)</
+const PAGE_OG_TITLE_PATTERN = /property="og:title" content="Watch [^"']+'s .*? video: ([^"]*) - Plays\.tv"/
+const PAGE_DOCUMENT_TITLE_PATTERN = /<title>([^<]*)<\/title>/
+const PAGE_GAME_PATTERNS = [
+  /class="game-link" href="\/game\/[^"?]*\?game_id=([0-9a-f]+)[^"]*">([^<]+)</,
+  /<span class="in">in<\/span> <a href="[^"]*?game_id=([0-9a-f]+)[^"]*"[^>]*>([^<]+)</,
+]
+const PAGE_DURATION_PATTERN = /class="duration"[^>]*>([\d:]+)</
+const PAGE_POSTED_PATTERN = /<div class="post"><span class="time">([^<]+)</
+
+/**
+ * Reads one clip from its archived embed or video page: the media files, title, game,
+ * length and who uploaded it. Null when the page doesn't show this clip.
+ */
+export function parseClipPage(rawHtml: string, videoId: string): ParsedClipPage | null {
+  // Unescapes the script strings, so both layouts read the same.
+  const html = rawHtml.replaceAll('\\/', '/').replaceAll('\\"', '"')
+  if (!html.includes(videoId)) return null
+  const mediaPath = PAGE_OG_IMAGE_PATTERN.exec(html)?.[1] ?? PAGE_MEDIA_PATTERN.exec(html)?.[1]
+  const media = mediaPath ? MEDIA_URL_PATTERN.exec(mediaPath) : null
+  const owner = firstMatch(html, PAGE_OWNER_PATTERNS)?.[1]
+  if (!media || !owner) return null
+  const ownerUsername = decodeURIComponent(owner)
+
+  const documentTitle = PAGE_DOCUMENT_TITLE_PATTERN.exec(html)?.[1]
+    ?.replace(/ - Plays\.tv$/, '')
+    .replace(`${ownerUsername} - `, '')
+  const title =
+    PAGE_TITLE_PATTERN.exec(html)?.[1]?.trim() ||
+    PAGE_OG_TITLE_PATTERN.exec(html)?.[1]?.trim() ||
+    documentTitle?.trim()
+  const game = firstMatch(html, PAGE_GAME_PATTERNS)
+  // The player's ad data carries the length of the clip itself, in seconds.
+  const length = new RegExp(`data-feed-id="${videoId}"\\s+data-ad="[^"]*?length%3D([\\d.]+)`).exec(
+    html,
+  )?.[1]
+  const posted = PAGE_POSTED_PATTERN.exec(html)?.[1]
+  const uploadedAt = posted ? Date.parse(posted) : NaN
+  return {
+    ownerUsername,
+    clip: {
+      videoId,
+      cdnHost: media[1],
+      mediaId: media[2],
+      title: decodeHtmlEntities(title || 'Untitled clip'),
+      durationSeconds: length
+        ? Math.round(Number(length))
+        : parseClockDuration(PAGE_DURATION_PATTERN.exec(html)?.[1]),
+      uploadedAt: Number.isNaN(uploadedAt) ? undefined : uploadedAt,
+      gameId: game?.[1],
+      gameName: game ? decodeHtmlEntities(game[2].trim()) : undefined,
+    },
+  }
+}
+
+function firstMatch(text: string, patterns: RegExp[]) {
+  for (const pattern of patterns) {
+    const match = pattern.exec(text)
+    if (match) return match
+  }
+  return null
 }
 
 /** Parses "1:02:03" / "4:05" style durations into seconds. */

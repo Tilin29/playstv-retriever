@@ -22,6 +22,29 @@ export async function getProfileByUsername(ctx: QueryCtx, username: string) {
     .unique()
 }
 
+/**
+ * Starts retrieving a username from the Wayback Machine. A failed lookup (`existing`)
+ * stored nothing, so it starts over on the same row.
+ */
+export async function startProfileLookup(
+  ctx: MutationCtx,
+  username: string,
+  existing: Doc<'profiles'> | null,
+) {
+  let profileId = existing?._id
+  if (profileId) {
+    await ctx.db.patch('profiles', profileId, { username, status: 'searching', error: undefined })
+  } else {
+    profileId = await ctx.db.insert('profiles', {
+      usernameKey: toUsernameKey(username),
+      username,
+      status: 'searching',
+    })
+  }
+  await ctx.scheduler.runAfter(0, internal.retrieval.retrieveProfile, { profileId, username })
+  return profileId
+}
+
 /** The most recently retrieved profiles that were found, newest first. */
 export async function listRecentProfiles(ctx: QueryCtx, paginationOpts: PaginationOptions) {
   return await ctx.db

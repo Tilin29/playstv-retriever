@@ -1,6 +1,5 @@
 import { paginationOptsValidator } from 'convex/server'
 import { ConvexError, v } from 'convex/values'
-import { internal } from './_generated/api'
 import { mutation, query } from './_generated/server'
 import * as Profiles from './model/profiles'
 import { captureUrl } from './model/wayback'
@@ -72,19 +71,6 @@ export const lookup = mutation({
       if (existing.status === 'ready') await Profiles.retryFailedMedia(ctx, existing)
       return existing._id
     }
-
-    // A failed lookup stored nothing, so it starts over on the same row.
-    let profileId = existing?._id
-    if (profileId) {
-      await ctx.db.patch('profiles', profileId, { username, status: 'searching', error: undefined })
-    } else {
-      profileId = await ctx.db.insert('profiles', {
-        usernameKey: Profiles.toUsernameKey(username),
-        username,
-        status: 'searching',
-      })
-    }
-    await ctx.scheduler.runAfter(0, internal.retrieval.retrieveProfile, { profileId, username })
-    return profileId
+    return await Profiles.startProfileLookup(ctx, username, existing)
   },
 })

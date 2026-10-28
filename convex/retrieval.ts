@@ -8,6 +8,7 @@ import {
   type ActionCtx,
 } from './_generated/server'
 import { archiveGate } from './model/archive'
+import { settleWaitingClipLinks } from './model/clipLinks'
 import { adjustRecoveredCounts } from './model/clips'
 import { addGames } from './model/games'
 import { isBlacklisted } from './model/moderation'
@@ -18,6 +19,7 @@ import {
   FULL_VIDEO_QUALITIES,
   parseProfilePage,
   parseVideosModulePage,
+  PLAYSTV_SHUTDOWN_TIMESTAMP,
   profilePagePriority,
   videosModuleUrl,
   type ParsedClip,
@@ -44,8 +46,6 @@ const VIDEO_CHECK_CONCURRENCY = 4
 // Each phase hands over to a fresh action before running into the action time limit.
 const PHASE_TIME_BUDGET_MS = 4 * 60 * 1000
 const PHASE_BATCH_SIZE = 20
-// Video probes ask for the capture closest to Plays.tv's shutdown.
-const PLAYSTV_SHUTDOWN_TIMESTAMP = '20191215'
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
@@ -198,6 +198,8 @@ export const saveProfile = internalMutation({
       })
     }
     await addGames(ctx, clips)
+    // Clips looked up by their link that the profile's own list left out.
+    await settleWaitingClipLinks(ctx, profileId, 'ready')
     // The clips are visible right away (their previews play from the Wayback Machine).
     // Both phases run side by side: they use different Archive endpoints.
     await ctx.scheduler.runAfter(0, internal.retrieval.downloadProfileMedia, {
@@ -212,7 +214,9 @@ export const saveProfile = internalMutation({
 export const markNotFound = internalMutation({
   args: { profileId: v.id('profiles') },
   handler: async (ctx, { profileId }) => {
-    if (await ctx.db.get('profiles', profileId)) {
+    if (!(await ctx.db.get('profiles', profileId))) return null
+    // A clip found through its link still makes the profile worth showing.
+    if (!(await settleWaitingClipLinks(ctx, profileId, 'not_found'))) {
       await ctx.db.patch('profiles', profileId, { status: 'not_found' })
     }
     return null
@@ -224,6 +228,7 @@ export const markFailed = internalMutation({
   handler: async (ctx, { profileId, error }) => {
     if (await ctx.db.get('profiles', profileId)) {
       await ctx.db.patch('profiles', profileId, { status: 'error', error })
+      await settleWaitingClipLinks(ctx, profileId, 'error')
     }
     return null
   },
@@ -268,6 +273,16 @@ export const downloadProfileMedia = internalAction({
         return null
       }
     }
+    return null
+  },
+})
+
+/** Stores one clip's preview and thumbnail, for a clip added on its own (by its link). */
+export const downloadClipMedia = internalAction({
+  args: { clipId: v.id('clips'), timestamp: v.string() },
+  handler: async (ctx, { clipId, timestamp }) => {
+    const clip: Doc<'clips'> | null = await ctx.runQuery(internal.retrieval.getClip, { clipId })
+    if (clip?.mediaStatus === 'pending') await storeClipMedia(ctx, archiveGate(ctx), clip, timestamp)
     return null
   },
 })
