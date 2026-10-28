@@ -22,6 +22,7 @@ import {
   type ParsedClip,
 } from './playstv'
 import { getProfileByUsername, isValidUsername, startProfileLookup } from './profiles'
+import { flagNewClip } from './titleFlags'
 import {
   fetchCaptureHtml,
   fetchClosestCaptureHtml,
@@ -281,6 +282,7 @@ async function addLinkedClip(
     mediaStatus: 'pending',
     videoStatus: 'checking',
   })
+  await flagNewClip(ctx, clipId, clip.title)
   if (profile.clipCount !== undefined) {
     await ctx.db.patch('profiles', profile._id, { clipCount: profile.clipCount + 1 })
   }

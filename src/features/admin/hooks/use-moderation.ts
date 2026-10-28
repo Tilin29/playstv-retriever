@@ -10,6 +10,11 @@ export type BlacklistedClip = NonNullable<
   FunctionReturnType<typeof api.admin.listBlacklisted>
 >[number]
 
+export type FlaggedTitle = NonNullable<
+  FunctionReturnType<typeof api.admin.listTitleFlags>
+>[number]
+export type TitleScan = NonNullable<FunctionReturnType<typeof api.admin.getTitleScan>>
+
 export function useReportedClips(sessionToken: string) {
   return useQuery(api.admin.listReports, { sessionToken })
 }
@@ -23,6 +28,37 @@ export function useModeratedClip(sessionToken: string, clipId: Id<'clips'>) {
   return useQuery(api.admin.getClip, { sessionToken, clipId })
 }
 
+/** Clips whose titles contain an offensive word. `enabled: false` skips the query. */
+export function useTitleFlags(
+  sessionToken: string,
+  status: 'open' | 'resolved',
+  enabled = true,
+) {
+  return useQuery(api.admin.listTitleFlags, enabled ? { sessionToken, status } : 'skip')
+}
+
+/** The last scan of every title (null when none ran), and starting a new one. */
+export function useTitleScan(sessionToken: string) {
+  const scan = useQuery(api.admin.getTitleScan, { sessionToken })
+  const startScan = useMutation(api.admin.startTitleScan)
+  const [starting, setStarting] = useState(false)
+  const [error, setError] = useState<string>()
+
+  async function start() {
+    setStarting(true)
+    setError(undefined)
+    try {
+      await startScan({ sessionToken })
+    } catch (caught) {
+      setError(caught instanceof ConvexError ? String(caught.data) : 'Something went wrong')
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  return { scan, start, starting, error }
+}
+
 export function useSearches(sessionToken: string) {
   return usePaginatedQuery(
     api.admin.listSearches,
@@ -34,20 +70,33 @@ export function useSearches(sessionToken: string) {
 export type Search = FunctionReturnType<typeof api.admin.listSearches>['page'][number]
 export const SEARCHES_PAGE_SIZE = 25
 
-type ClipAction = 'blacklist' | 'dismiss' | 'restore' | 'hideTitle' | 'showTitle'
+type ClipAction =
+  | 'blacklist'
+  | 'dismiss'
+  | 'restore'
+  | 'hideTitle'
+  | 'showTitle'
+  | 'resolveTitleFlag'
+  | 'reopenTitleFlag'
 
-/** Blacklists, dismisses the reports of, restores or hides the title of one clip at a time. */
+/**
+ * Blacklists, dismisses the reports of, restores, hides the title of or resolves the
+ * title flag of one clip at a time.
+ */
 export function useClipActions(sessionToken: string) {
   const blacklist = useMutation(api.admin.blacklistClip)
   const dismiss = useMutation(api.admin.dismissReports)
   const restore = useMutation(api.admin.restoreClip)
   const setTitleHidden = useMutation(api.admin.setTitleHidden)
+  const setTitleFlagResolved = useMutation(api.admin.setTitleFlagResolved)
   const mutations: Record<ClipAction, (args: { sessionToken: string; clipId: Id<'clips'> }) => Promise<null>> = {
     blacklist,
     dismiss,
     restore,
     hideTitle: (args) => setTitleHidden({ ...args, hidden: true }),
     showTitle: (args) => setTitleHidden({ ...args, hidden: false }),
+    resolveTitleFlag: (args) => setTitleFlagResolved({ ...args, resolved: true }),
+    reopenTitleFlag: (args) => setTitleFlagResolved({ ...args, resolved: false }),
   }
   const [pending, setPending] = useState<{ clipId: Id<'clips'>; action: ClipAction }>()
   const [error, setError] = useState<string>()

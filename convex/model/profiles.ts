@@ -3,6 +3,7 @@ import { ConvexError } from 'convex/values'
 import { internal } from '../_generated/api'
 import type { Doc, Id } from '../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../_generated/server'
+import { deleteFlag } from './titleFlags'
 
 const USERNAME_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/
 
@@ -171,6 +172,7 @@ export async function deleteProfile(ctx: MutationCtx, profile: Doc<'profiles'>) 
   for await (const clip of clips) {
     await deleteFiles(ctx, [clip.previewStorageId, clip.thumbnailStorageId])
     await ctx.db.delete('clips', clip._id)
+    await deleteFlag(ctx, clip._id)
   }
   await deleteFiles(ctx, [profile.avatarStorageId])
   await ctx.db.delete('profiles', profile._id)

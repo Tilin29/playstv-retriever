@@ -9,6 +9,7 @@ import type { MutationCtx, QueryCtx } from '../_generated/server'
 import type { reportReason } from '../schema'
 import { adjustRecoveredCounts, createOwnerLoader, toOwnedClipView } from './clips'
 import { deleteFiles } from './profiles'
+import { setFlagResolved } from './titleFlags'
 
 type ReportReason = Infer<typeof reportReason>
 
@@ -135,13 +136,15 @@ function countReasons(reports: Doc<'reports'>[]) {
 
 /**
  * Hides a clip from the public, deletes its stored preview and thumbnail, and closes
- * its open reports. The admin panel still previews it straight from the Wayback Machine.
+ * its open reports and title flag. The admin panel still previews it straight from the
+ * Wayback Machine.
  */
 export async function blacklistClip(ctx: MutationCtx, clipId: Id<'clips'>) {
   const clip = await ctx.db.get('clips', clipId)
   if (!clip) throw new ConvexError('Clip not found')
   const reports = await openReportsOf(ctx, clipId)
   await closeReports(ctx, reports, 'actioned')
+  await setFlagResolved(ctx, clipId, true)
   if (await isBlacklisted(ctx, clipId)) return
 
   const topReason = countReasons(reports)[0]?.reason

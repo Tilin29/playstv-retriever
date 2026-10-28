@@ -5,13 +5,17 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useAdminSession, useSignOut } from '../hooks/use-admin-session'
-import { useBlacklistedClips, useReportedClips } from '../hooks/use-moderation'
+import { useBlacklistedClips, useReportedClips, useTitleFlags } from '../hooks/use-moderation'
 import { BlacklistedClips } from './blacklisted-clips'
+import { OffensiveTitles } from './offensive-titles'
 import { ReportedClips } from './reported-clips'
 import { SearchLog } from './search-log'
 import { SignInForm } from './sign-in-form'
 
-/** Sign-in, then the reported and blacklisted clips. Every action is checked server-side. */
+/**
+ * Sign-in, then the reported, blacklisted and offensively titled clips. Every action is
+ * checked server-side.
+ */
 export function AdminPanel() {
   const { sessionToken, isAdmin } = useAdminSession()
   useDocumentTitle('Admin')
@@ -32,6 +36,7 @@ function Moderation({ sessionToken }: { sessionToken: string }) {
   const signOut = useSignOut()
   const reported = useReportedClips(sessionToken) ?? undefined
   const blacklisted = useBlacklistedClips(sessionToken) ?? undefined
+  const flaggedTitles = useTitleFlags(sessionToken, 'open') ?? undefined
 
   return (
     <section className="flex flex-col gap-6">
@@ -55,6 +60,9 @@ function Moderation({ sessionToken }: { sessionToken: string }) {
           <TabsTrigger value="blacklisted">
             Blacklisted{blacklisted !== undefined && ` (${blacklisted.length})`}
           </TabsTrigger>
+          <TabsTrigger value="titles">
+            Offensive titles{flaggedTitles !== undefined && ` (${flaggedTitles.length})`}
+          </TabsTrigger>
           <TabsTrigger value="searches">Searches</TabsTrigger>
         </TabsList>
         <TabsContent value="reports">
@@ -62,6 +70,9 @@ function Moderation({ sessionToken }: { sessionToken: string }) {
         </TabsContent>
         <TabsContent value="blacklisted">
           <BlacklistedClips sessionToken={sessionToken} blacklisted={blacklisted} />
+        </TabsContent>
+        <TabsContent value="titles">
+          <OffensiveTitles sessionToken={sessionToken} open={flaggedTitles} />
         </TabsContent>
         <TabsContent value="searches">
           <SearchLog sessionToken={sessionToken} />

@@ -26,6 +26,7 @@ import {
   type VideosModuleConfig,
 } from './model/playstv'
 import { deleteFiles } from './model/profiles'
+import { flagNewClip } from './model/titleFlags'
 import {
   fetchArchivedFile,
   fetchCaptureHtml,
@@ -190,12 +191,13 @@ export const saveProfile = internalMutation({
     })
 
     for (const clip of clips) {
-      await ctx.db.insert('clips', {
+      const clipId = await ctx.db.insert('clips', {
         ...clip,
         profileId,
         mediaStatus: 'pending',
         videoStatus: 'checking',
       })
+      await flagNewClip(ctx, clipId, clip.title)
     }
     await addGames(ctx, clips)
     // Clips looked up by their link that the profile's own list left out.

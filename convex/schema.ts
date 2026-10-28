@@ -57,6 +57,30 @@ export const clipLinkStatus = v.union(
   v.literal('error'),
 )
 
+/** Why a word in model/offensiveWords.ts is offensive. */
+export const offensiveCategory = v.union(
+  v.literal('racial'),
+  v.literal('antisemitic'),
+  v.literal('homophobic'),
+  v.literal('transphobic'),
+  v.literal('ableist'),
+)
+
+/** A word of the list found in a clip's title. */
+export const titleMatch = v.object({
+  // The list's entry, e.g. the slur itself.
+  word: v.string(),
+  category: offensiveCategory,
+  // How it was written, after normalizing (see model/offensiveWords.ts).
+  text: v.string(),
+})
+
+export const titleFlagStatus = v.union(
+  v.literal('open'),
+  // An admin looked at it; scans leave it alone from then on.
+  v.literal('resolved'),
+)
+
 export const clipFields = {
   videoId: v.string(),
   mediaId: v.string(),
@@ -192,6 +216,29 @@ export default defineSchema({
   })
     .index('by_clipId', ['clipId'])
     .index('by_profileId', ['profileId']),
+
+  // A clip whose title contains a word of model/offensiveWords.ts, for the admin panel.
+  // Added when the clip is stored and by `admin:startTitleScan`; at most one per clip.
+  titleFlags: defineTable({
+    clipId: v.id('clips'),
+    matches: v.array(titleMatch),
+    status: titleFlagStatus,
+    resolvedAt: v.optional(v.number()),
+  })
+    .index('by_clipId', ['clipId'])
+    .index('by_status', ['status']),
+
+  // Singleton: the progress of the last scan of every title for offensive words.
+  titleScans: defineTable({
+    // Bumped by every new scan, so the batches of a replaced one stop.
+    generation: v.number(),
+    status: v.union(v.literal('running'), v.literal('done')),
+    scanned: v.number(),
+    // Open flags the scan added.
+    flagged: v.number(),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  }),
 
   // Signed-in admin panels. Only a hash of the token is stored; each row is deleted
   // when it expires (see model/admin.ts).

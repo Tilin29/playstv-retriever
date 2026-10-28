@@ -7,8 +7,11 @@ import { action, env, internalMutation, mutation, query } from './_generated/ser
 import * as Admin from './model/admin'
 import * as Moderation from './model/moderation'
 import * as Searches from './model/searches'
+import * as TitleFlags from './model/titleFlags'
+import { titleFlagStatus } from './schema'
 
 const MAX_BLACKLISTED = 200
+const MAX_TITLE_FLAGS = 200
 
 /** Exchanges the admin password for a session token. */
 export const signIn = action({
@@ -138,6 +141,51 @@ export const restoreClip = mutation({
   handler: async (ctx, { sessionToken, clipId }) => {
     await Admin.requireAdmin(ctx, sessionToken)
     await Moderation.restoreClip(ctx, clipId)
+    return null
+  },
+})
+
+/** Clips whose titles contain an offensive word, newest first. Null when not signed in. */
+export const listTitleFlags = query({
+  args: { sessionToken: v.string(), status: titleFlagStatus },
+  handler: async (ctx, { sessionToken, status }) => {
+    if (!(await Admin.isAdmin(ctx, sessionToken))) return null
+    return await TitleFlags.listFlags(ctx, status, MAX_TITLE_FLAGS)
+  },
+})
+
+export const setTitleFlagResolved = mutation({
+  args: { sessionToken: v.string(), clipId: v.id('clips'), resolved: v.boolean() },
+  handler: async (ctx, { sessionToken, clipId, resolved }) => {
+    await Admin.requireAdmin(ctx, sessionToken)
+    await TitleFlags.setFlagResolved(ctx, clipId, resolved)
+    return null
+  },
+})
+
+/** The last scan of every title. Null when not signed in or no scan ever ran. */
+export const getTitleScan = query({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, { sessionToken }) => {
+    if (!(await Admin.isAdmin(ctx, sessionToken))) return null
+    return await TitleFlags.getScan(ctx)
+  },
+})
+
+/** Checks every stored title against the word list again, in the background. */
+export const startTitleScan = mutation({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, { sessionToken }) => {
+    await Admin.requireAdmin(ctx, sessionToken)
+    await TitleFlags.startScan(ctx)
+    return null
+  },
+})
+
+export const scanTitlesBatch = internalMutation({
+  args: { generation: v.number(), cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, { generation, cursor }) => {
+    await TitleFlags.scanBatch(ctx, generation, cursor)
     return null
   },
 })
