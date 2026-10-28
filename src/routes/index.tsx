@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { RecentProfiles } from '@/features/recent-profiles'
 import { UsernameSearchForm } from '@/features/user-search'
 
 export const Route = createFileRoute('/')({
@@ -21,6 +22,7 @@ function HomePage() {
       <p className="text-sm text-muted-foreground">
         Not affiliated with Plays.tv or the Internet Archive.
       </p>
+      <RecentProfiles />
     </section>
   )
 }

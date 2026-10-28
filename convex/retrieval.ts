@@ -7,14 +7,14 @@ import {
   internalQuery,
   type ActionCtx,
 } from './_generated/server'
+import { archiveGate } from './model/archive'
 import {
   cdnHostVariants,
-  clipMediaPrefix,
   clipMediaUrl,
+  clipVideoUrl,
+  FULL_VIDEO_QUALITIES,
   parseProfilePage,
   parseVideosModulePage,
-  pickFullVideo,
-  processedFileName,
   profilePagePriority,
   videosModuleUrl,
   type ParsedClip,
@@ -24,26 +24,27 @@ import { deleteFiles } from './model/profiles'
 import {
   fetchArchivedFile,
   fetchCaptureHtml,
+  findCapture,
   listCaptures,
   rawCaptureUrl,
+  type ArchiveGate,
   type Snapshot,
 } from './model/wayback'
 import { clipFields } from './schema'
 
 const MAX_PROFILE_PAGES = 2
 const MAX_VIDEOS_MODULE_PAGES = 100
-// Previews are plain file downloads, so a few run in parallel.
+// Requests mostly wait on the Archive, so a few run in parallel; the shared request
+// budget in model/archive.ts decides how fast they actually go.
 const MEDIA_DOWNLOAD_CONCURRENCY = 4
-// Each file listing spends most of its 10-30s waiting on the Archive, so a few run
-// at once; a rate-limit response pauses all of them (see model/wayback.ts).
-const VIDEO_CHECK_CONCURRENCY = 3
+const VIDEO_CHECK_CONCURRENCY = 4
 // Each phase hands over to a fresh action before running into the action time limit.
 const PHASE_TIME_BUDGET_MS = 4 * 60 * 1000
 const PHASE_BATCH_SIZE = 20
 // Video checks the Archive errored on get another pass after these delays.
 const VIDEO_CHECK_RETRY_DELAYS_MS = [30_000, 120_000]
-// Only full-length MP4s ("720.mp4", ...) matter when listing a clip's files.
-const FULL_VIDEO_URL_PATTERN = '.*/processed/[0-9]+\\.mp4'
+// Video probes ask for the capture closest to Plays.tv's shutdown.
+const PLAYSTV_SHUTDOWN_TIMESTAMP = '20191215'
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
@@ -67,8 +68,9 @@ async function forEachConcurrently<T>(
 export const retrieveProfile = internalAction({
   args: { profileId: v.id('profiles'), username: v.string() },
   handler: async (ctx, { profileId, username }) => {
+    const gate = archiveGate(ctx)
     try {
-      const pages = (await listCaptures(`plays.tv/u/${username}`))
+      const pages = (await listCaptures(gate, `plays.tv/u/${username}`))
         .map((snapshot) => ({ snapshot, priority: profilePagePriority(snapshot.url, username) }))
         .filter((page): page is { snapshot: Snapshot; priority: number } => page.priority !== null)
         .sort((a, b) => a.priority - b.priority)
@@ -85,7 +87,7 @@ export const retrieveProfile = internalAction({
         }
       }
       for (const { snapshot } of pages) {
-        const html = await fetchCaptureHtml(snapshot)
+        const html = await fetchCaptureHtml(gate, snapshot)
         if (!html) continue
         const parsed = parseProfilePage(html)
         primary ??= { snapshot, displayName: parsed.displayName, avatarUrl: parsed.avatarUrl }
@@ -105,7 +107,10 @@ export const retrieveProfile = internalAction({
         const { snapshot, config } = nextVideosPage
         let json: string | null
         try {
-          json = await fetchCaptureHtml({ timestamp: snapshot.timestamp, url: videosModuleUrl(config) })
+          json = await fetchCaptureHtml(gate, {
+            timestamp: snapshot.timestamp,
+            url: videosModuleUrl(config),
+          })
         } catch {
           clipListIncomplete = true
           break
@@ -119,7 +124,7 @@ export const retrieveProfile = internalAction({
       let avatarStorageId: Id<'_storage'> | undefined
       if (primary.avatarUrl) {
         try {
-          const avatar = await fetchArchivedFile(primary.snapshot.timestamp, primary.avatarUrl)
+          const avatar = await fetchArchivedFile(gate, primary.snapshot.timestamp, primary.avatarUrl)
           if (avatar) avatarStorageId = await ctx.storage.store(avatar)
         } catch {
           // The avatar is optional; carry on without it.
@@ -160,7 +165,11 @@ export const saveProfile = internalMutation({
       await deleteFiles(ctx, [profile.avatarStorageId])
       return null
     }
-    await ctx.db.patch('profiles', profileId, { ...profile, status: 'ready' })
+    await ctx.db.patch('profiles', profileId, {
+      ...profile,
+      status: 'ready',
+      clipCount: clips.length,
+    })
 
     for (const clip of clips) {
       await ctx.db.insert('clips', {
@@ -220,6 +229,7 @@ export const listClipsNeedingMedia = internalQuery({
 export const downloadProfileMedia = internalAction({
   args: { profileId: v.id('profiles'), timestamp: v.string() },
   handler: async (ctx, { profileId, timestamp }) => {
+    const gate = archiveGate(ctx)
     const deadline = Date.now() + PHASE_TIME_BUDGET_MS
     for (;;) {
       const clips: Doc<'clips'>[] = await ctx.runQuery(internal.retrieval.listClipsNeedingMedia, {
@@ -228,7 +238,7 @@ export const downloadProfileMedia = internalAction({
       if (clips.length === 0) break
 
       await forEachConcurrently(clips, MEDIA_DOWNLOAD_CONCURRENCY, deadline, (clip) =>
-        storeClipMedia(ctx, clip, timestamp),
+        storeClipMedia(ctx, gate, clip, timestamp),
       )
 
       if (Date.now() > deadline) {
@@ -244,23 +254,33 @@ export const downloadProfileMedia = internalAction({
 })
 
 /** Downloads the first of `urls` that was archived into storage. */
-async function storeFirstArchived(ctx: ActionCtx, timestamp: string, urls: string[]) {
+async function storeFirstArchived(
+  ctx: ActionCtx,
+  gate: ArchiveGate,
+  timestamp: string,
+  urls: string[],
+) {
   for (const url of urls) {
-    const blob = await fetchArchivedFile(timestamp, url)
+    const blob = await fetchArchivedFile(gate, timestamp, url)
     if (blob) return await ctx.storage.store(blob)
   }
   return undefined
 }
 
-async function storeClipMedia(ctx: ActionCtx, clip: Doc<'clips'>, timestamp: string) {
+async function storeClipMedia(
+  ctx: ActionCtx,
+  gate: ArchiveGate,
+  clip: Doc<'clips'>,
+  timestamp: string,
+) {
   let previewStorageId: Id<'_storage'> | undefined
   let thumbnailStorageId: Id<'_storage'> | undefined
   let failed = false
   try {
-    previewStorageId = await storeFirstArchived(ctx, timestamp, [
+    previewStorageId = await storeFirstArchived(ctx, gate, timestamp, [
       clipMediaUrl(clip, 'preview_144.mp4'),
     ])
-    thumbnailStorageId = await storeFirstArchived(ctx, timestamp, [
+    thumbnailStorageId = await storeFirstArchived(ctx, gate, timestamp, [
       clipMediaUrl(clip, '480.jpg'),
       clipMediaUrl(clip, '144.jpg'),
     ])
@@ -312,6 +332,7 @@ export const listClipsNeedingVideoCheck = internalQuery({
 export const checkProfileVideos = internalAction({
   args: { profileId: v.id('profiles'), attempt: v.optional(v.number()) },
   handler: async (ctx, { profileId, attempt = 0 }) => {
+    const gate = archiveGate(ctx)
     const deadline = Date.now() + PHASE_TIME_BUDGET_MS
     for (;;) {
       const clips: Doc<'clips'>[] = await ctx.runQuery(
@@ -321,7 +342,7 @@ export const checkProfileVideos = internalAction({
       if (clips.length === 0) break
 
       await forEachConcurrently(clips, VIDEO_CHECK_CONCURRENCY, deadline, (clip) =>
-        checkClipVideo(ctx, clip, attempt),
+        checkClipVideo(ctx, gate, clip),
       )
 
       if (Date.now() > deadline) {
@@ -349,24 +370,27 @@ export const checkProfileVideos = internalAction({
   },
 })
 
-/** Lists a clip's archived full-length videos by name ("720.mp4", "480.mp4", ...). */
-async function listClipVideos(cdnHost: string, mediaId: string) {
-  const files = new Map<string, Snapshot>()
-  for (const host of cdnHostVariants(cdnHost)) {
-    const captures = await listCaptures(clipMediaPrefix(host, mediaId), FULL_VIDEO_URL_PATTERN)
-    for (const capture of captures) {
-      const fileName = processedFileName(capture.url)
-      if (fileName && !files.has(fileName)) files.set(fileName, capture)
+type FullVideo = { capture: Snapshot; quality: number }
+
+/**
+ * Probes the clip's full-length MP4s directly, best quality first: about a second
+ * per probe, where a CDX listing takes 10-40s and has a much tighter rate limit.
+ */
+async function probeFullVideo(gate: ArchiveGate, clip: Doc<'clips'>): Promise<FullVideo | null> {
+  for (const host of cdnHostVariants(clip.cdnHost)) {
+    for (const quality of FULL_VIDEO_QUALITIES) {
+      const url = clipVideoUrl(host, clip.mediaId, quality)
+      const capture = await findCapture(gate, PLAYSTV_SHUTDOWN_TIMESTAMP, url)
+      if (capture) return { capture, quality }
     }
-    if (pickFullVideo(files.keys())) break
   }
-  return files
+  return null
 }
 
-async function checkClipVideo(ctx: ActionCtx, clip: Doc<'clips'>, attempt: number) {
-  let files: Map<string, Snapshot>
+async function checkClipVideo(ctx: ActionCtx, gate: ArchiveGate, clip: Doc<'clips'>) {
+  let video: FullVideo | null
   try {
-    files = await listClipVideos(clip.cdnHost, clip.mediaId)
+    video = await probeFullVideo(gate, clip)
   } catch {
     await ctx.runMutation(internal.retrieval.saveClipVideo, {
       clipId: clip._id,
@@ -374,16 +398,11 @@ async function checkClipVideo(ctx: ActionCtx, clip: Doc<'clips'>, attempt: numbe
     })
     return
   }
-  const fullVideo = pickFullVideo(files.keys())
-  const videoCapture = fullVideo ? files.get(fullVideo.fileName) : undefined
-  // The Archive occasionally answers with an empty listing during hiccups, so a clip
-  // without a video is looked up once more in the delayed retry pass before giving up.
-  const notFound = attempt === 0 ? 'rechecking' : 'unavailable'
   await ctx.runMutation(internal.retrieval.saveClipVideo, {
     clipId: clip._id,
-    videoStatus: videoCapture ? 'available' : notFound,
-    videoUrl: videoCapture ? rawCaptureUrl(videoCapture.timestamp, videoCapture.url) : undefined,
-    videoQuality: fullVideo?.quality,
+    videoStatus: video ? 'available' : 'unavailable',
+    videoUrl: video ? rawCaptureUrl(video.capture.timestamp, video.capture.url) : undefined,
+    videoQuality: video?.quality,
   })
 }
 

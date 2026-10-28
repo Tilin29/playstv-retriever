@@ -58,9 +58,11 @@ export function clipMediaUrl(
   return `https://${clip.cdnHost}/video/${clip.mediaId}/processed/${file}`
 }
 
-/** Prefix covering every processed file of a clip, e.g. "d1playscdntv-a.akamaihd.net/video/<id>/". */
-export function clipMediaPrefix(cdnHost: string, mediaId: string) {
-  return `${cdnHost}/video/${mediaId}/`
+/** Full-length MP4 qualities Plays.tv encoded, best first. */
+export const FULL_VIDEO_QUALITIES = [1080, 720, 480] as const
+
+export function clipVideoUrl(cdnHost: string, mediaId: string, quality: number) {
+  return `https://${cdnHost}/video/${mediaId}/processed/${quality}.mp4`
 }
 
 /**
@@ -71,25 +73,6 @@ export function cdnHostVariants(cdnHost: string) {
   const match = /^d([01])(.*)$/.exec(cdnHost)
   if (!match) return [cdnHost]
   return [cdnHost, `d${match[1] === '0' ? '1' : '0'}${match[2]}`]
-}
-
-const PROCESSED_FILE_PATTERN = /\/processed\/([^/?#]+)$/
-const FULL_VIDEO_PATTERN = /^(\d+)\.mp4$/
-
-/** Name of a clip media file within its "processed" folder, e.g. "720.mp4". */
-export function processedFileName(url: string) {
-  return PROCESSED_FILE_PATTERN.exec(url)?.[1] ?? null
-}
-
-/** Picks the highest-quality full-length MP4 (e.g. "720.mp4" over "480.mp4"). */
-export function pickFullVideo(fileNames: Iterable<string>) {
-  let best: { fileName: string; quality: number } | null = null
-  for (const fileName of fileNames) {
-    const match = FULL_VIDEO_PATTERN.exec(fileName)
-    const quality = match ? Number(match[1]) : 0
-    if (quality > (best?.quality ?? 0)) best = { fileName, quality }
-  }
-  return best
 }
 
 /** Reads the clip list from the page's JSON-LD ProfilePage block, plus name and avatar. */

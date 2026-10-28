@@ -8,9 +8,11 @@
  * @module
  */
 
+import type * as archive from "../archive.js";
 import type * as cleanup from "../cleanup.js";
 import type * as clips from "../clips.js";
 import type * as crons from "../crons.js";
+import type * as model_archive from "../model/archive.js";
 import type * as model_playstv from "../model/playstv.js";
 import type * as model_profiles from "../model/profiles.js";
 import type * as model_wayback from "../model/wayback.js";
@@ -24,9 +26,11 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  archive: typeof archive;
   cleanup: typeof cleanup;
   clips: typeof clips;
   crons: typeof crons;
+  "model/archive": typeof model_archive;
   "model/playstv": typeof model_playstv;
   "model/profiles": typeof model_profiles;
   "model/wayback": typeof model_wayback;
@@ -60,4 +64,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+};

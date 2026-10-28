@@ -46,7 +46,16 @@ export default defineSchema({
     avatarStorageId: v.optional(v.id('_storage')),
     // True when the Archive failed partway through the "load more" pages.
     clipListIncomplete: v.optional(v.boolean()),
-  }).index('by_usernameKey', ['usernameKey']),
+    clipCount: v.optional(v.number()),
+  })
+    .index('by_usernameKey', ['usernameKey'])
+    .index('by_status', ['status']),
+
+  // Singleton: when the Archive rate-limits or refuses one request, every action
+  // holds off until `pausedUntil` (see model/archive.ts).
+  archiveStatus: defineTable({
+    pausedUntil: v.number(),
+  }),
 
   clips: defineTable({
     profileId: v.id('profiles'),

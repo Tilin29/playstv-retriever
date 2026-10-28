@@ -27,6 +27,15 @@ export async function getProfileByUsername(ctx: QueryCtx, username: string) {
     .unique()
 }
 
+/** The most recently retrieved profiles that were found, newest first. */
+export async function listRecentProfiles(ctx: QueryCtx, limit: number) {
+  return await ctx.db
+    .query('profiles')
+    .withIndex('by_status', (q) => q.eq('status', 'ready'))
+    .order('desc')
+    .take(limit)
+}
+
 export async function deleteFiles(ctx: MutationCtx, storageIds: (Id<'_storage'> | undefined)[]) {
   for (const storageId of storageIds) {
     if (storageId) await ctx.storage.delete(storageId)

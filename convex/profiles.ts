@@ -26,6 +26,26 @@ export const get = query({
   },
 })
 
+const RECENT_PROFILES_LIMIT = 8
+
+export const listRecent = query({
+  args: {},
+  handler: async (ctx) => {
+    const profiles = await Profiles.listRecentProfiles(ctx, RECENT_PROFILES_LIMIT)
+    return await Promise.all(
+      profiles.map(async (profile) => ({
+        _id: profile._id,
+        // `username` is the display name; the key is what the profile is looked up by.
+        username: profile.username,
+        usernameKey: profile.usernameKey,
+        clipCount: profile.clipCount ?? null,
+        retrievedAt: profile._creationTime,
+        avatarUrl: profile.avatarStorageId ? await ctx.storage.getUrl(profile.avatarStorageId) : null,
+      })),
+    )
+  },
+})
+
 /**
  * Starts retrieving a username from the Wayback Machine, unless a usable result
  * already exists. Failed or expired results are discarded and retried.
