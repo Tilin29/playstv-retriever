@@ -99,6 +99,35 @@ export function useRetryVideoChecks(sessionToken: string) {
   return { run, pending, error }
 }
 
+export type HiddenProfile = NonNullable<
+  FunctionReturnType<typeof api.admin.listHiddenProfiles>
+>[number]
+
+export function useHiddenProfiles(sessionToken: string) {
+  return useQuery(api.admin.listHiddenProfiles, { sessionToken })
+}
+
+/** Hides or shows one profile at a time. */
+export function useProfileActions(sessionToken: string) {
+  const setProfileHidden = useMutation(api.admin.setProfileHidden)
+  const [pending, setPending] = useState<Id<'profiles'>>()
+  const [error, setError] = useState<string>()
+
+  async function setHidden(profileId: Id<'profiles'>, hidden: boolean) {
+    setPending(profileId)
+    setError(undefined)
+    try {
+      await setProfileHidden({ sessionToken, profileId, hidden })
+    } catch (caught) {
+      setError(caught instanceof ConvexError ? String(caught.data) : 'Something went wrong')
+    } finally {
+      setPending(undefined)
+    }
+  }
+
+  return { setHidden, pending, error }
+}
+
 export function useSearches(sessionToken: string) {
   return usePaginatedQuery(
     api.admin.listSearches,

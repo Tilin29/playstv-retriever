@@ -58,7 +58,7 @@ export async function listFlags(ctx: QueryCtx, status: 'open' | 'resolved', limi
   const entries = await Promise.all(
     flags.map(async (flag) => {
       const clip = await ctx.db.get('clips', flag.clipId)
-      const view = clip && (await toOwnedClipView(ctx, clip, loadOwner, { revealTitle: true }))
+      const view = clip && (await toOwnedClipView(ctx, clip, loadOwner, { revealTitle: true, includeHiddenProfile: true }))
       if (!view) return null
       return {
         clip: view,

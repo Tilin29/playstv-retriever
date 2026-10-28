@@ -42,6 +42,7 @@ export function createOwnerLoader(ctx: QueryCtx) {
     if (!profile?.snapshotTimestamp) return null
     return {
       timestamp: profile.snapshotTimestamp,
+      hidden: profile.hiddenAt !== undefined,
       username: profile.username,
       usernameKey: profile.usernameKey,
       avatarUrl: profile.avatarStorageId ? await ctx.storage.getUrl(profile.avatarStorageId) : null,
@@ -58,7 +59,10 @@ export function createOwnerLoader(ctx: QueryCtx) {
   }
 }
 
-/** A clip together with its profile, or null when the profile has no snapshot. */
+/**
+ * A clip together with its profile, or null when the profile has no snapshot or was
+ * hidden (unless `includeHiddenProfile` is set).
+ */
 export async function toOwnedClipView(
   ctx: QueryCtx,
   clip: Doc<'clips'>,
@@ -66,13 +70,16 @@ export async function toOwnedClipView(
   options?: ClipViewOptions,
 ) {
   const owner = await loadOwner(clip.profileId)
-  if (!owner) return null
-  const { timestamp, ...ownerView } = owner
+  if (!owner || (owner.hidden && !options?.includeHiddenProfile)) return null
+  const { timestamp, hidden: _hidden, ...ownerView } = owner
   return { ...(await toClipView(ctx, clip, timestamp, options)), owner: ownerView }
 }
 
-/** `revealTitle`: include a hidden title, for the admin panel. */
-type ClipViewOptions = { revealTitle?: boolean }
+/**
+ * For the admin panel: `revealTitle` includes a hidden title, `includeHiddenProfile`
+ * keeps clips of hidden profiles.
+ */
+type ClipViewOptions = { revealTitle?: boolean; includeHiddenProfile?: boolean }
 
 /**
  * What the app shows of a clip. `timestamp` is its profile's snapshot. A title an admin

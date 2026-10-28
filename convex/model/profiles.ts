@@ -16,6 +16,11 @@ export function toUsernameKey(username: string) {
   return username.toLowerCase()
 }
 
+/** Whether an admin hid the profile, leaving it and its clips out of every public query. */
+export function isProfileHidden(profile: Doc<'profiles'>) {
+  return profile.hiddenAt !== undefined
+}
+
 export async function getProfileByUsername(ctx: QueryCtx, username: string) {
   return await ctx.db
     .query('profiles')
@@ -62,16 +67,22 @@ export async function searchProfilesWithRecoveredClips(
     .withIndex('by_usernameKey', (q) => q.gte('usernameKey', key).lt('usernameKey', `${key}￿`))
     .take(limit * PREFIX_READ_FACTOR)
   return profiles
-    .filter((profile) => profile.status === 'ready' && (profile.recoveredCount ?? 0) > 0)
+    .filter(
+      (profile) =>
+        profile.status === 'ready' &&
+        (profile.recoveredCount ?? 0) > 0 &&
+        !isProfileHidden(profile),
+    )
     .slice(0, limit)
 }
 
-/** The most recently retrieved profiles that were found, newest first. */
+/** The most recently retrieved profiles that were found and aren't hidden, newest first. */
 export async function listRecentProfiles(ctx: QueryCtx, paginationOpts: PaginationOptions) {
   return await ctx.db
     .query('profiles')
     .withIndex('by_status', (q) => q.eq('status', 'ready'))
     .order('desc')
+    .filter((q) => q.eq(q.field('hiddenAt'), undefined))
     .paginate(paginationOpts)
 }
 

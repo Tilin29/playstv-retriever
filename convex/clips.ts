@@ -5,7 +5,7 @@ import { mutation, query } from './_generated/server'
 import { createOwnerLoader, retryClipVideo, toClipView, toOwnedClipView } from './model/clips'
 import { listFeedPage } from './model/feed'
 import { blacklistedClipIds, isBlacklisted } from './model/moderation'
-import { getProfileByUsername } from './model/profiles'
+import { getProfileByUsername, isProfileHidden } from './model/profiles'
 
 const MAX_CLIPS = 500
 
@@ -14,7 +14,7 @@ export const listByProfile = query({
   handler: async (ctx, { profileId }) => {
     const profile = await ctx.db.get('profiles', profileId)
     const timestamp = profile?.snapshotTimestamp
-    if (!timestamp) return []
+    if (!timestamp || isProfileHidden(profile)) return []
 
     const clips = await ctx.db
       .query('clips')
@@ -91,7 +91,7 @@ export const listFeed = query({
     let profileId: Id<'profiles'> | undefined
     if (username) {
       const profile = await getProfileByUsername(ctx, username)
-      if (!profile) return { page: [], isDone: true, continueCursor: '' }
+      if (!profile || isProfileHidden(profile)) return { page: [], isDone: true, continueCursor: '' }
       profileId = profile._id
     }
     const search = filters.search?.trim() || undefined

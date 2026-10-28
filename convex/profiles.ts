@@ -9,6 +9,10 @@ export const get = query({
   handler: async (ctx, { username }) => {
     const profile = await Profiles.getProfileByUsername(ctx, username)
     if (!profile) return null
+    // Only what the "blocked" message (and an admin's unhide button) needs.
+    if (Profiles.isProfileHidden(profile)) {
+      return { _id: profile._id, username: profile.username, status: 'blocked' as const }
+    }
 
     const { snapshotTimestamp, snapshotUrl, avatarStorageId } = profile
     return {
@@ -31,7 +35,7 @@ export const getShareInfo = query({
   args: { username: v.string() },
   handler: async (ctx, { username }) => {
     const profile = await Profiles.getProfileByUsername(ctx, username)
-    if (!profile || profile.status !== 'ready') return null
+    if (!profile || profile.status !== 'ready' || Profiles.isProfileHidden(profile)) return null
     return {
       username: profile.username,
       clipCount: profile.clipCount ?? null,
@@ -89,7 +93,9 @@ export const retryMissingVideos = mutation({
   args: { profileId: v.id('profiles') },
   handler: async (ctx, { profileId }) => {
     const profile = await ctx.db.get('profiles', profileId)
-    if (!profile || profile.status !== 'ready') throw new ConvexError('Profile not found')
+    if (!profile || profile.status !== 'ready' || Profiles.isProfileHidden(profile)) {
+      throw new ConvexError('Profile not found')
+    }
     await Profiles.retryMissingVideos(ctx, profile)
     return null
   },
@@ -105,6 +111,8 @@ export const lookup = mutation({
     if (!Profiles.isValidUsername(username)) throw new ConvexError('Invalid username')
 
     const existing = await Profiles.getProfileByUsername(ctx, username)
+    // A hidden profile is never retrieved again; its page shows that it was blocked.
+    if (existing && Profiles.isProfileHidden(existing)) return existing._id
     if (existing && existing.status !== 'error') {
       if (existing.status === 'ready') await Profiles.retryFailedMedia(ctx, existing)
       return existing._id

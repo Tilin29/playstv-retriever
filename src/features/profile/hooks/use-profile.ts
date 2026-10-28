@@ -3,7 +3,9 @@ import { useMutation, useQuery } from 'convex/react'
 import type { FunctionReturnType } from 'convex/server'
 import { api } from '@convex/_generated/api'
 
-export type Profile = NonNullable<FunctionReturnType<typeof api.profiles.get>>
+type ProfileResult = NonNullable<FunctionReturnType<typeof api.profiles.get>>
+/** A profile that isn't hidden. */
+export type Profile = Exclude<ProfileResult, { status: 'blocked' }>
 
 /**
  * Subscribes to a username's retrieval and starts it if needed. The lookup

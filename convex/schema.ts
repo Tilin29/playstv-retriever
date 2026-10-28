@@ -112,9 +112,13 @@ export default defineSchema({
     recoveredCount: v.optional(v.number()),
     // Legacy: set by a 30-day cleanup that no longer runs. Unused.
     mediaExpired: v.optional(v.boolean()),
+    // When an admin hid the whole profile. A hidden profile and its clips are left out
+    // of every public query; its page says the user's content was blocked.
+    hiddenAt: v.optional(v.number()),
   })
     .index('by_usernameKey', ['usernameKey'])
-    .index('by_status', ['status']),
+    .index('by_status', ['status'])
+    .index('by_hiddenAt', ['hiddenAt']),
 
   // Singleton: when the Archive rate-limits or refuses one request, every action
   // holds off until `pausedUntil` (see model/archive.ts).

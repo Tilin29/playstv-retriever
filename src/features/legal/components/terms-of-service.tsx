@@ -75,6 +75,11 @@ export function TermsOfService() {
             hide its title, which then shows as <em>(Title removed due to TOS violation)</em>.
           </li>
         </ul>
+        <p>
+          We may also block a whole profile. A blocked profile and all of its clips no longer
+          appear anywhere on the website, and searching for that user shows that their content
+          has been blocked.
+        </p>
       </Section>
 
       <Section title="4. Why a clip or its title may be removed">
@@ -110,7 +115,9 @@ export function TermsOfService() {
         <p>
           When only the title is the problem (for example, it contains a slur but the clip
           itself is fine), we usually hide the title and keep the clip. When the clip itself is
-          the problem, it is removed. Either decision is ours to make, and we don't have to
+          the problem, it is removed. A whole profile may be blocked when many of its clips or
+          titles break these terms, when its username or avatar does, or when the person it
+          belongs to asks for it. Each of these decisions is ours to make, and we don't have to
           give a reason for a particular one.
         </p>
       </Section>

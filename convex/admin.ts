@@ -13,6 +13,7 @@ import { titleFlagStatus } from './schema'
 
 const MAX_BLACKLISTED = 200
 const MAX_TITLE_FLAGS = 200
+const MAX_HIDDEN_PROFILES = 200
 
 /** Exchanges the admin password for a session token. */
 export const signIn = action({
@@ -113,6 +114,24 @@ export const setTitleHidden = mutation({
   handler: async (ctx, { sessionToken, clipId, hidden }) => {
     await Admin.requireAdmin(ctx, sessionToken)
     await Moderation.setTitleHidden(ctx, clipId, hidden)
+    return null
+  },
+})
+
+/** The most recently hidden profiles. Null when not signed in. */
+export const listHiddenProfiles = query({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, { sessionToken }) => {
+    if (!(await Admin.isAdmin(ctx, sessionToken))) return null
+    return await Moderation.listHiddenProfiles(ctx, MAX_HIDDEN_PROFILES)
+  },
+})
+
+export const setProfileHidden = mutation({
+  args: { sessionToken: v.string(), profileId: v.id('profiles'), hidden: v.boolean() },
+  handler: async (ctx, { sessionToken, profileId, hidden }) => {
+    await Admin.requireAdmin(ctx, sessionToken)
+    await Moderation.setProfileHidden(ctx, profileId, hidden)
     return null
   },
 })

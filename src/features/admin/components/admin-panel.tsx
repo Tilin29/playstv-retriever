@@ -5,17 +5,23 @@ import { Spinner } from '@/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useAdminSession, useSignOut } from '../hooks/use-admin-session'
-import { useBlacklistedClips, useReportedClips, useTitleFlags } from '../hooks/use-moderation'
+import {
+  useBlacklistedClips,
+  useHiddenProfiles,
+  useReportedClips,
+  useTitleFlags,
+} from '../hooks/use-moderation'
 import { ArchiveErrors } from './archive-errors'
 import { BlacklistedClips } from './blacklisted-clips'
+import { HiddenProfiles } from './hidden-profiles'
 import { OffensiveTitles } from './offensive-titles'
 import { ReportedClips } from './reported-clips'
 import { SearchLog } from './search-log'
 import { SignInForm } from './sign-in-form'
 
 /**
- * Sign-in, then the reported, blacklisted and offensively titled clips. Every action is
- * checked server-side.
+ * Sign-in, then the reported, blacklisted and offensively titled clips and the hidden
+ * profiles. Every action is checked server-side.
  */
 export function AdminPanel() {
   const { sessionToken, isAdmin } = useAdminSession()
@@ -38,6 +44,7 @@ function Moderation({ sessionToken }: { sessionToken: string }) {
   const reported = useReportedClips(sessionToken) ?? undefined
   const blacklisted = useBlacklistedClips(sessionToken) ?? undefined
   const flaggedTitles = useTitleFlags(sessionToken, 'open') ?? undefined
+  const hiddenProfiles = useHiddenProfiles(sessionToken) ?? undefined
 
   return (
     <section className="flex flex-col gap-6">
@@ -45,7 +52,7 @@ function Moderation({ sessionToken }: { sessionToken: string }) {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight">Moderation</h1>
           <p className="text-sm text-muted-foreground">
-            Blacklisted clips are hidden everywhere except here.
+            Blacklisted clips and hidden profiles are hidden everywhere except here.
           </p>
         </div>
         <Button variant="outline" onClick={() => void signOut()}>
@@ -61,6 +68,9 @@ function Moderation({ sessionToken }: { sessionToken: string }) {
           <TabsTrigger value="blacklisted">
             Blacklisted{blacklisted !== undefined && ` (${blacklisted.length})`}
           </TabsTrigger>
+          <TabsTrigger value="hidden-profiles">
+            Hidden profiles{hiddenProfiles !== undefined && ` (${hiddenProfiles.length})`}
+          </TabsTrigger>
           <TabsTrigger value="titles">
             Offensive titles{flaggedTitles !== undefined && ` (${flaggedTitles.length})`}
           </TabsTrigger>
@@ -72,6 +82,9 @@ function Moderation({ sessionToken }: { sessionToken: string }) {
         </TabsContent>
         <TabsContent value="blacklisted">
           <BlacklistedClips sessionToken={sessionToken} blacklisted={blacklisted} />
+        </TabsContent>
+        <TabsContent value="hidden-profiles">
+          <HiddenProfiles sessionToken={sessionToken} hidden={hiddenProfiles} />
         </TabsContent>
         <TabsContent value="titles">
           <OffensiveTitles sessionToken={sessionToken} open={flaggedTitles} />

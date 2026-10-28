@@ -29,7 +29,7 @@ export async function getVideoChecks(ctx: QueryCtx, clipIds: Id<'clips'>[]) {
 async function toViews(ctx: QueryCtx, clips: Doc<'clips'>[]) {
   const loadOwner = createOwnerLoader(ctx)
   const views = await Promise.all(
-    clips.map((clip) => toOwnedClipView(ctx, clip, loadOwner, { revealTitle: true })),
+    clips.map((clip) => toOwnedClipView(ctx, clip, loadOwner, { revealTitle: true, includeHiddenProfile: true })),
   )
   return views.filter((view) => view !== null)
 }

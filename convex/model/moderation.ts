@@ -1,5 +1,5 @@
-// Reports from visitors and the blacklist admins keep. A blacklisted clip is left out
-// of every public query; only the admin panel still lists it.
+// Reports from visitors and the blacklist admins keep. A blacklisted clip, or any clip of
+// a hidden profile, is left out of every public query; only the admin panel still lists it.
 import { HOUR, RateLimiter } from '@convex-dev/rate-limiter'
 import type { Infer } from 'convex/values'
 import { ConvexError } from 'convex/values'
@@ -8,7 +8,7 @@ import type { Doc, Id } from '../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../_generated/server'
 import type { reportReason } from '../schema'
 import { adjustRecoveredCounts, createOwnerLoader, toOwnedClipView } from './clips'
-import { deleteFiles } from './profiles'
+import { deleteFiles, isProfileHidden } from './profiles'
 import { setFlagResolved } from './titleFlags'
 
 type ReportReason = Infer<typeof reportReason>
@@ -103,7 +103,7 @@ export async function listOpenReports(ctx: QueryCtx) {
   const entries = await Promise.all(
     Array.from(byClip, async ([clipId, clipReports]) => {
       const clip = await ctx.db.get('clips', clipId)
-      const view = clip && (await toOwnedClipView(ctx, clip, loadOwner, { revealTitle: true }))
+      const view = clip && (await toOwnedClipView(ctx, clip, loadOwner, { revealTitle: true, includeHiddenProfile: true }))
       if (!view) return null
       return {
         clip: view,
@@ -188,7 +188,7 @@ export async function listBlacklisted(ctx: QueryCtx, limit: number) {
   const views = await Promise.all(
     entries.map(async (entry) => {
       const clip = await ctx.db.get('clips', entry.clipId)
-      const view = clip && (await toOwnedClipView(ctx, clip, loadOwner, { revealTitle: true }))
+      const view = clip && (await toOwnedClipView(ctx, clip, loadOwner, { revealTitle: true, includeHiddenProfile: true }))
       if (!view) return null
       return {
         clip: view,
@@ -198,6 +198,41 @@ export async function listBlacklisted(ctx: QueryCtx, limit: number) {
     }),
   )
   return views.filter((view) => view !== null)
+}
+
+/**
+ * Hides a whole profile, or shows it again: while hidden, it and its clips are left out
+ * of every public query and its page says the user's content was blocked. Nothing is
+ * deleted, so showing it again brings everything back.
+ */
+export async function setProfileHidden(
+  ctx: MutationCtx,
+  profileId: Id<'profiles'>,
+  hidden: boolean,
+) {
+  const profile = await ctx.db.get('profiles', profileId)
+  if (!profile) throw new ConvexError('Profile not found')
+  if (hidden === isProfileHidden(profile)) return
+  await ctx.db.patch('profiles', profileId, { hiddenAt: hidden ? Date.now() : undefined })
+}
+
+/** The most recently hidden profiles. */
+export async function listHiddenProfiles(ctx: QueryCtx, limit: number) {
+  const profiles = await ctx.db
+    .query('profiles')
+    .withIndex('by_hiddenAt', (q) => q.gt('hiddenAt', 0))
+    .order('desc')
+    .take(limit)
+  return await Promise.all(
+    profiles.map(async (profile) => ({
+      _id: profile._id,
+      username: profile.username,
+      usernameKey: profile.usernameKey,
+      clipCount: profile.clipCount ?? null,
+      avatarUrl: profile.avatarStorageId ? await ctx.storage.getUrl(profile.avatarStorageId) : null,
+      hiddenAt: profile.hiddenAt!,
+    })),
+  )
 }
 
 /** Hides or shows a clip's title for everyone but admins. */

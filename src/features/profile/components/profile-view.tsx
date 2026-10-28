@@ -1,4 +1,4 @@
-import { AlertCircleIcon, SearchXIcon } from 'lucide-react'
+import { AlertCircleIcon, BanIcon, SearchXIcon } from 'lucide-react'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/empty'
 import { Spinner } from '@/components/ui/spinner'
 import { useDocumentTitle } from '@/hooks/use-document-title'
+import { AdminProfileControls } from '@/features/admin'
 import { ClipGrid, useClips } from '@/features/clips'
 import type { Id } from '@convex/_generated/dataModel'
 import { useProfile, type Profile } from '../hooks/use-profile'
@@ -27,8 +28,27 @@ export function ProfileView({ username, ...viewerProps }: { username: string } &
       ? `Searching for ${username}…`
       : profile.status === 'ready'
         ? profile.username
-        : username,
+        : profile.status === 'blocked'
+          ? 'Content blocked'
+          : username,
   )
+
+  if (profile?.status === 'blocked') {
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <BanIcon />
+          </EmptyMedia>
+          <EmptyTitle>Content blocked</EmptyTitle>
+          <EmptyDescription>
+            The content from this user has been blocked from the website.
+          </EmptyDescription>
+        </EmptyHeader>
+        <AdminProfileControls profileId={profile._id} hidden />
+      </Empty>
+    )
+  }
 
   if (lookupError || profile?.status === 'error') {
     return (
@@ -88,6 +108,7 @@ function ReadyProfile({ profile, ...viewerProps }: { profile: Profile } & ClipVi
   const clips = useClips(profile._id)
   return (
     <div className="flex flex-col gap-6">
+      <AdminProfileControls profileId={profile._id} hidden={false} />
       <ProfileHeader profile={profile} clips={clips} />
       <ClipGrid
         clips={clips}
