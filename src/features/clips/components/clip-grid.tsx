@@ -12,16 +12,19 @@ import type { Clip } from '../hooks/use-clips'
 import { useJustLostClips } from '../hooks/use-just-lost-clips'
 import { isUnrecoverable, isWatchable } from '../lib/status'
 import { ClipCard } from './clip-card'
-import { ClipViewer } from './clip-viewer'
+import { ClipViewer, type ClipOwner } from './clip-viewer'
 
 const GRID_CLASSES = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'
 
 export function ClipGrid({
   clips,
+  owner,
   openClipId,
   onOpenClipChange,
 }: {
   clips: Clip[] | undefined
+  /** The profile all these clips belong to. */
+  owner: ClipOwner
   /** The clip shown in the viewer, if any. */
   openClipId: Id<'clips'> | undefined
   onOpenClipChange: (clipId: Id<'clips'> | undefined) => void
@@ -66,7 +69,7 @@ export function ClipGrid({
     <div className="flex flex-col gap-8">
       <ClipSection title="Recoverable" clips={recoverable} {...sectionProps} />
       <ClipSection title="Couldn't be recovered" clips={unrecoverable} {...sectionProps} />
-      <ClipViewer clip={openClip} onClose={() => onOpenClipChange(undefined)} />
+      <ClipViewer clip={openClip} owner={owner} onClose={() => onOpenClipChange(undefined)} />
     </div>
   )
 }

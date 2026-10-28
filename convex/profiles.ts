@@ -15,6 +15,7 @@ export const get = query({
     return {
       _id: profile._id,
       username: profile.username,
+      usernameKey: profile.usernameKey,
       status: profile.status,
       error: profile.error ?? null,
       snapshotTimestamp: snapshotTimestamp ?? null,

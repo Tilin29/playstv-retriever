@@ -89,7 +89,15 @@ function ReadyProfile({ profile, ...viewerProps }: { profile: Profile } & ClipVi
   return (
     <div className="flex flex-col gap-6">
       <ProfileHeader profile={profile} clips={clips} />
-      <ClipGrid clips={clips} {...viewerProps} />
+      <ClipGrid
+        clips={clips}
+        owner={{
+          username: profile.username,
+          usernameKey: profile.usernameKey,
+          avatarUrl: profile.avatarUrl,
+        }}
+        {...viewerProps}
+      />
     </div>
   )
 }

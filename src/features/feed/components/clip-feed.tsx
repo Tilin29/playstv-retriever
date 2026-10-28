@@ -82,7 +82,11 @@ export function ClipFeed({
           </Button>
         )}
       </div>
-      <ClipViewer clip={openClip} onClose={() => onOpenClipChange(undefined)} />
+      <ClipViewer
+        clip={openClip}
+        owner={openClip?.owner ?? null}
+        onClose={() => onOpenClipChange(undefined)}
+      />
     </div>
   )
 }
