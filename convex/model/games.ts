@@ -1,6 +1,6 @@
 import type { MutationCtx, QueryCtx } from '../_generated/server'
 
-async function getGame(ctx: QueryCtx, gameId: string) {
+export async function getGame(ctx: QueryCtx, gameId: string) {
   return await ctx.db
     .query('games')
     .withIndex('by_gameId', (q) => q.eq('gameId', gameId))
@@ -26,11 +26,25 @@ export async function countRecoveredClip(ctx: MutationCtx, gameId: string, count
   if (game) await ctx.db.patch('games', game._id, { recoveredCount: game.recoveredCount + count })
 }
 
-/** Games with at least one recovered clip, most recovered first. */
-export async function listGamesWithRecoveredClips(ctx: QueryCtx, limit: number) {
-  return await ctx.db
+// Search results include games without recovered clips, which are skipped, so a few
+// more are read than are returned.
+const SEARCH_READ_FACTOR = 3
+
+/**
+ * Games with at least one recovered clip: the most recovered first, or, given `text`,
+ * the best matches for it.
+ */
+export async function searchGamesWithRecoveredClips(ctx: QueryCtx, text: string, limit: number) {
+  if (!text) {
+    return await ctx.db
+      .query('games')
+      .withIndex('by_recoveredCount', (q) => q.gt('recoveredCount', 0))
+      .order('desc')
+      .take(limit)
+  }
+  const matches = await ctx.db
     .query('games')
-    .withIndex('by_recoveredCount', (q) => q.gt('recoveredCount', 0))
-    .order('desc')
-    .take(limit)
+    .withSearchIndex('search_name', (q) => q.search('name', text))
+    .take(limit * SEARCH_READ_FACTOR)
+  return matches.filter((game) => game.recoveredCount > 0).slice(0, limit)
 }

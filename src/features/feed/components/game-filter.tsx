@@ -1,7 +1,20 @@
-import { Button } from '@/components/ui/button'
-import { useFeedGames } from '../hooks/use-feed'
+import { useState } from 'react'
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from '@/components/ui/combobox'
+import { useGame, useGameSearch } from '../hooks/use-feed'
 
-/** One chip per game with recovered clips; scrolls sideways when there are many. */
+type GameOption = { gameId: string; name: string; recoveredCount?: number }
+
+/**
+ * Picks one game to show clips of. There are too many games to list, so it searches
+ * them by name; before anything is typed it offers the games with the most clips.
+ */
 export function GameFilter({
   gameId,
   onGameChange,
@@ -9,50 +22,38 @@ export function GameFilter({
   gameId: string | undefined
   onGameChange: (gameId: string | undefined) => void
 }) {
-  const games = useFeedGames()
-  if (!games || games.length === 0) return null
+  const [query, setQuery] = useState('')
+  const games = useGameSearch(query)
+  const selected = useGame(gameId)
+  const value: GameOption | null = gameId ? (selected ?? { gameId, name: 'Loading…' }) : null
 
   return (
-    <div
-      role="group"
-      aria-label="Filter by game"
-      className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0"
+    <Combobox
+      items={games ?? []}
+      value={value}
+      onValueChange={(game: GameOption | null) => onGameChange(game?.gameId)}
+      onInputValueChange={setQuery}
+      itemToStringLabel={(game: GameOption) => game.name}
+      isItemEqualToValue={(a: GameOption, b: GameOption) => a.gameId === b.gameId}
+      // The server already matched the games to what was typed.
+      filter={null}
     >
-      <Chip selected={gameId === undefined} onClick={() => onGameChange(undefined)}>
-        All games
-      </Chip>
-      {games.map((game) => (
-        <Chip
-          key={game.gameId}
-          selected={game.gameId === gameId}
-          onClick={() => onGameChange(game.gameId)}
-        >
-          {game.name}
-          <span className="tabular-nums opacity-60">{game.recoveredCount}</span>
-        </Chip>
-      ))}
-    </div>
-  )
-}
-
-function Chip({
-  selected,
-  onClick,
-  children,
-}: {
-  selected: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <Button
-      variant={selected ? 'default' : 'outline'}
-      size="sm"
-      aria-pressed={selected}
-      onClick={onClick}
-      className="rounded-full"
-    >
-      {children}
-    </Button>
+      <ComboboxInput placeholder="Any game" aria-label="Game" showClear className="w-full" />
+      <ComboboxContent>
+        <ComboboxEmpty>{games === undefined ? 'Searching…' : 'No games found.'}</ComboboxEmpty>
+        <ComboboxList>
+          {(game: GameOption) => (
+            <ComboboxItem key={game.gameId} value={game}>
+              <span className="min-w-0 flex-1 truncate">{game.name}</span>
+              {game.recoveredCount !== undefined && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {game.recoveredCount}
+                </span>
+              )}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
-import { FilmIcon } from 'lucide-react'
+import { FilmIcon, SearchXIcon } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,25 +14,30 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { ClipCard, ClipViewer } from '@/features/clips'
 import type { Id } from '@convex/_generated/dataModel'
-import { FEED_PAGE_SIZE, useFeed, type FeedClip, type FeedSort } from '../hooks/use-feed'
+import {
+  FEED_PAGE_SIZE,
+  useFeed,
+  type FeedClip,
+  type FeedFilters,
+  type FeedSort,
+} from '../hooks/use-feed'
 
 const GRID_CLASSES = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'
 const VIEWER_PRELOAD_CLIPS = 3
 
 export function ClipFeed({
-  gameId,
+  filters,
   sort,
   openClipId,
   onOpenClipChange,
 }: {
-  /** Only clips of this game, if set. */
-  gameId: string | undefined
+  filters: FeedFilters
   sort: FeedSort
   /** The clip shown in the viewer, if any. */
   openClipId: Id<'clips'> | undefined
   onOpenClipChange: (clipId: Id<'clips'> | undefined) => void
 }) {
-  const { results, status, loadMore } = useFeed(gameId, sort)
+  const { results, status, loadMore } = useFeed(filters, sort)
   const loadMoreRef = useLoadMoreOnScroll(
     status === 'CanLoadMore' ? () => loadMore(FEED_PAGE_SIZE) : null,
   )
@@ -55,15 +60,18 @@ export function ClipFeed({
   }
 
   if (results.length === 0) {
+    const filtered = Object.values(filters).some((value) => value !== undefined)
     return (
       <Empty className="border">
         <EmptyHeader>
           <EmptyMedia variant="icon">
-            <FilmIcon />
+            {filtered ? <SearchXIcon /> : <FilmIcon />}
           </EmptyMedia>
-          <EmptyTitle>No recovered clips yet</EmptyTitle>
+          <EmptyTitle>{filtered ? 'No clips match these filters' : 'No recovered clips yet'}</EmptyTitle>
           <EmptyDescription>
-            Search a username and the clips that can be recovered will show up here.
+            {filtered
+              ? 'Try other words, another user or game, or a wider date range.'
+              : 'Search a username and the clips that can be recovered will show up here.'}
           </EmptyDescription>
         </EmptyHeader>
       </Empty>

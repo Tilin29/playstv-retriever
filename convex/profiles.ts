@@ -46,6 +46,29 @@ export const listRecent = query({
   },
 })
 
+const MAX_FEED_USERS = 10
+
+/**
+ * Profiles with recovered clips whose username starts with `prefix`, for the feed's
+ * user filter. Nothing until at least one character is typed.
+ */
+export const searchFeedUsers = query({
+  args: { prefix: v.string() },
+  handler: async (ctx, { prefix }) => {
+    const trimmed = prefix.trim()
+    if (!trimmed) return []
+    const profiles = await Profiles.searchProfilesWithRecoveredClips(ctx, trimmed, MAX_FEED_USERS)
+    return await Promise.all(
+      profiles.map(async (profile) => ({
+        username: profile.username,
+        usernameKey: profile.usernameKey,
+        recoveredCount: profile.recoveredCount ?? 0,
+        avatarUrl: profile.avatarStorageId ? await ctx.storage.getUrl(profile.avatarStorageId) : null,
+      })),
+    )
+  },
+})
+
 /** Searches the Wayback Machine again for the clips whose full video wasn't found. */
 export const retryMissingVideos = mutation({
   args: { profileId: v.id('profiles') },

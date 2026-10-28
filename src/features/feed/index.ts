@@ -1,5 +1,6 @@
 export { ClipFeed } from './components/clip-feed'
+export { FeedFilters } from './components/feed-filters'
 export { FeedSortSelect } from './components/feed-sort-select'
-export { GameFilter } from './components/game-filter'
-export { DEFAULT_FEED_SORT, type FeedSort } from './hooks/use-feed'
+export { DEFAULT_FEED_SORT, type FeedFilters as FeedFilterValues, type FeedSort } from './hooks/use-feed'
+export { isDateParam } from './lib/dates'
 export { isFeedSort } from './lib/sort'

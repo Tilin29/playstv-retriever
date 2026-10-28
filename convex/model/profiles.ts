@@ -45,6 +45,26 @@ export async function startProfileLookup(
   return profileId
 }
 
+// Profiles whose usernames start with a prefix include ones with no recovered clips,
+// which are skipped, so a few more are read than are returned.
+const PREFIX_READ_FACTOR = 5
+
+/** Profiles with recovered clips whose username starts with `prefix`, alphabetically. */
+export async function searchProfilesWithRecoveredClips(
+  ctx: QueryCtx,
+  prefix: string,
+  limit: number,
+) {
+  const key = toUsernameKey(prefix)
+  const profiles = await ctx.db
+    .query('profiles')
+    .withIndex('by_usernameKey', (q) => q.gte('usernameKey', key).lt('usernameKey', `${key}￿`))
+    .take(limit * PREFIX_READ_FACTOR)
+  return profiles
+    .filter((profile) => profile.status === 'ready' && (profile.recoveredCount ?? 0) > 0)
+    .slice(0, limit)
+}
+
 /** The most recently retrieved profiles that were found, newest first. */
 export async function listRecentProfiles(ctx: QueryCtx, paginationOpts: PaginationOptions) {
   return await ctx.db

@@ -120,7 +120,12 @@ export default defineSchema({
     .index('by_videoStatus', ['videoStatus'])
     .index('by_videoStatus_and_gameId', ['videoStatus', 'gameId'])
     // Finds the clip a pasted plays.tv/video/<videoId> link points to.
-    .index('by_videoId', ['videoId']),
+    .index('by_videoId', ['videoId'])
+    // The feed's title search, narrowed by the feed's other filters.
+    .searchIndex('search_title', {
+      searchField: 'title',
+      filterFields: ['videoStatus', 'gameId', 'profileId'],
+    }),
 
   // One row per game seen in a clip list, for the feed's game filter.
   games: defineTable({
@@ -130,7 +135,9 @@ export default defineSchema({
     recoveredCount: v.number(),
   })
     .index('by_gameId', ['gameId'])
-    .index('by_recoveredCount', ['recoveredCount']),
+    .index('by_recoveredCount', ['recoveredCount'])
+    // The feed's game picker, which there are too many games to list in full.
+    .searchIndex('search_name', { searchField: 'name' }),
 
   // A pasted clip link being looked up (see model/clipLinks.ts). Once its clip is
   // stored, the clip itself answers the link and this row only remembers the outcome.

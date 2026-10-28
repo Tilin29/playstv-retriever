@@ -1,8 +1,11 @@
 import { paginationOptsValidator } from 'convex/server'
 import { v } from 'convex/values'
+import type { Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
 import { createOwnerLoader, retryClipVideo, toClipView, toOwnedClipView } from './model/clips'
+import { listFeedPage } from './model/feed'
 import { blacklistedClipIds, isBlacklisted } from './model/moderation'
+import { getProfileByUsername } from './model/profiles'
 
 const MAX_CLIPS = 500
 
@@ -69,33 +72,29 @@ const feedSort = v.union(
   v.literal('added_asc'),
 )
 
-/** Every recovered clip across all profiles (or of one game), newest upload first by default. */
+/**
+ * Every recovered clip across all profiles, newest upload first by default. Narrowed by
+ * words in the title (then ordered by relevance), uploader (`username`), game, and upload
+ * date (`from`/`to`, inclusive, in ms).
+ */
 export const listFeed = query({
   args: {
     paginationOpts: paginationOptsValidator,
+    search: v.optional(v.string()),
+    username: v.optional(v.string()),
     gameId: v.optional(v.string()),
+    from: v.optional(v.number()),
+    to: v.optional(v.number()),
     sort: v.optional(feedSort),
   },
-  handler: async (ctx, { paginationOpts, gameId, sort = 'uploaded_desc' }) => {
-    const byUpload = sort.startsWith('uploaded')
-    const recovered = ctx.db.query('clips')
-    const clips = gameId
-      ? recovered.withIndex(
-          byUpload ? 'by_videoStatus_and_gameId_and_uploadedAt' : 'by_videoStatus_and_gameId',
-          (q) => q.eq('videoStatus', 'available').eq('gameId', gameId),
-        )
-      : recovered.withIndex(byUpload ? 'by_videoStatus_and_uploadedAt' : 'by_videoStatus', (q) =>
-          q.eq('videoStatus', 'available'),
-        )
-    const result = await clips.order(sort.endsWith('asc') ? 'asc' : 'desc').paginate(paginationOpts)
-
-    const loadOwner = createOwnerLoader(ctx)
-    const page = await Promise.all(
-      result.page.map(async (clip) =>
-        // Blacklisted clips are rare, so they're dropped from the page rather than indexed out.
-        (await isBlacklisted(ctx, clip._id)) ? null : await toOwnedClipView(ctx, clip, loadOwner),
-      ),
-    )
-    return { ...result, page: page.filter((clip) => clip !== null) }
+  handler: async (ctx, { paginationOpts, username, sort = 'uploaded_desc', ...filters }) => {
+    let profileId: Id<'profiles'> | undefined
+    if (username) {
+      const profile = await getProfileByUsername(ctx, username)
+      if (!profile) return { page: [], isDone: true, continueCursor: '' }
+      profileId = profile._id
+    }
+    const search = filters.search?.trim() || undefined
+    return await listFeedPage(ctx, { ...filters, search, profileId, sort }, paginationOpts)
   },
 })

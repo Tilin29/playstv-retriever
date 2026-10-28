@@ -3,33 +3,39 @@ import type { Id } from '@convex/_generated/dataModel'
 import {
   ClipFeed,
   DEFAULT_FEED_SORT,
+  FeedFilters,
   FeedSortSelect,
-  GameFilter,
+  isDateParam,
   isFeedSort,
+  type FeedFilterValues,
   type FeedSort,
 } from '@/features/feed'
 import { useDocumentTitle } from '@/hooks/use-document-title'
 
-type FeedSearch = {
+type FeedSearch = FeedFilterValues & {
   /** Opens that clip in the viewer, so a clip can be linked to directly. */
   clip?: Id<'clips'>
-  /** Only shows clips of this game. */
-  game?: string
   /** Left out for the default order. */
   sort?: FeedSort
 }
 
+const text = (value: unknown) => (typeof value === 'string' && value.trim() ? value : undefined)
+
 export const Route = createFileRoute('/feed')({
   validateSearch: (search: Record<string, unknown>): FeedSearch => ({
     ...(typeof search.clip === 'string' && { clip: search.clip as Id<'clips'> }),
-    ...(typeof search.game === 'string' && { game: search.game }),
+    ...(text(search.q) && { q: text(search.q) }),
+    ...(text(search.user) && { user: text(search.user) }),
+    ...(text(search.game) && { game: text(search.game) }),
+    ...(isDateParam(search.from) && { from: search.from }),
+    ...(isDateParam(search.to) && { to: search.to }),
     ...(isFeedSort(search.sort) && search.sort !== DEFAULT_FEED_SORT && { sort: search.sort }),
   }),
   component: FeedPage,
 })
 
 function FeedPage() {
-  const { clip, game, sort = DEFAULT_FEED_SORT } = Route.useSearch()
+  const { clip, sort = DEFAULT_FEED_SORT, ...filters } = Route.useSearch()
   const navigate = Route.useNavigate()
   useDocumentTitle('Recovered clips')
 
@@ -42,24 +48,31 @@ function FeedPage() {
         </div>
         <FeedSortSelect
           sort={sort}
+          searching={filters.q !== undefined}
           onSortChange={(newSort) =>
             navigate({
               search: (prev) => ({
-                game: prev.game,
+                ...prev,
+                clip: undefined,
                 sort: newSort === DEFAULT_FEED_SORT ? undefined : newSort,
               }),
             })
           }
         />
       </div>
-      <GameFilter
-        gameId={game}
-        onGameChange={(gameId) =>
-          navigate({ search: (prev) => ({ game: gameId, sort: prev.sort }) })
+      <FeedFilters
+        filters={filters}
+        onFiltersChange={(changes, options) =>
+          navigate({
+            search: (prev) => ({ ...prev, ...changes, clip: undefined }),
+            // Refining a search already under way replaces its entry, so each pause while
+            // typing doesn't become its own Back step.
+            replace: options?.debounced && filters.q !== undefined,
+          })
         }
       />
       <ClipFeed
-        gameId={game}
+        filters={filters}
         sort={sort}
         openClipId={clip}
         onOpenClipChange={(clipId) =>

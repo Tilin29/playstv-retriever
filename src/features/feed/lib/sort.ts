@@ -1,11 +1,14 @@
 import type { FeedSort } from '../hooks/use-feed'
 
-/** "Upload" is when the clip was published on Plays.tv; "added" is when it was saved here. */
+/**
+ * "Uploaded" is when the clip was published on Plays.tv (2014–2019); "recovered" is when
+ * this website found it in the archive.
+ */
 export const FEED_SORT_LABELS: Record<FeedSort, string> = {
-  uploaded_desc: 'Newest upload',
-  uploaded_asc: 'Oldest upload',
-  added_desc: 'Recently added',
-  added_asc: 'First added',
+  uploaded_desc: 'Uploaded to Plays.tv: newest first',
+  uploaded_asc: 'Uploaded to Plays.tv: oldest first',
+  added_desc: 'Recovered here: most recent first',
+  added_asc: 'Recovered here: earliest first',
 }
 
 export function isFeedSort(value: unknown): value is FeedSort {

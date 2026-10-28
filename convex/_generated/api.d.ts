@@ -19,6 +19,7 @@ import type * as model_admin from "../model/admin.js";
 import type * as model_archive from "../model/archive.js";
 import type * as model_clipLinks from "../model/clipLinks.js";
 import type * as model_clips from "../model/clips.js";
+import type * as model_feed from "../model/feed.js";
 import type * as model_games from "../model/games.js";
 import type * as model_moderation from "../model/moderation.js";
 import type * as model_playstv from "../model/playstv.js";
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   "model/archive": typeof model_archive;
   "model/clipLinks": typeof model_clipLinks;
   "model/clips": typeof model_clips;
+  "model/feed": typeof model_feed;
   "model/games": typeof model_games;
   "model/moderation": typeof model_moderation;
   "model/playstv": typeof model_playstv;
