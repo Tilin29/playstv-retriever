@@ -35,7 +35,7 @@ export function RecentProfiles() {
   return (
     <section className="flex w-full flex-col gap-3 text-left">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium text-muted-foreground">Recently recovered</h2>
+        <h2 className="text-sm font-medium text-muted-foreground">Scanned profiles history</h2>
         {recent.hasPages && (
           <div className="flex gap-1">
             <Button
