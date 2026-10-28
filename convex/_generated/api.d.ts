@@ -13,6 +13,7 @@ import type * as archive from "../archive.js";
 import type * as cleanup from "../cleanup.js";
 import type * as clipLinks from "../clipLinks.js";
 import type * as clips from "../clips.js";
+import type * as crons from "../crons.js";
 import type * as games from "../games.js";
 import type * as migrations from "../migrations.js";
 import type * as model_admin from "../model/admin.js";
@@ -26,6 +27,7 @@ import type * as model_offensiveWords from "../model/offensiveWords.js";
 import type * as model_playstv from "../model/playstv.js";
 import type * as model_profiles from "../model/profiles.js";
 import type * as model_searches from "../model/searches.js";
+import type * as model_siteStats from "../model/siteStats.js";
 import type * as model_titleFlags from "../model/titleFlags.js";
 import type * as model_videoChecks from "../model/videoChecks.js";
 import type * as model_wayback from "../model/wayback.js";
@@ -33,6 +35,7 @@ import type * as profiles from "../profiles.js";
 import type * as reports from "../reports.js";
 import type * as retrieval from "../retrieval.js";
 import type * as searches from "../searches.js";
+import type * as siteStats from "../siteStats.js";
 
 import type {
   ApiFromModules,
@@ -46,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   cleanup: typeof cleanup;
   clipLinks: typeof clipLinks;
   clips: typeof clips;
+  crons: typeof crons;
   games: typeof games;
   migrations: typeof migrations;
   "model/admin": typeof model_admin;
@@ -59,6 +63,7 @@ declare const fullApi: ApiFromModules<{
   "model/playstv": typeof model_playstv;
   "model/profiles": typeof model_profiles;
   "model/searches": typeof model_searches;
+  "model/siteStats": typeof model_siteStats;
   "model/titleFlags": typeof model_titleFlags;
   "model/videoChecks": typeof model_videoChecks;
   "model/wayback": typeof model_wayback;
@@ -66,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   reports: typeof reports;
   retrieval: typeof retrieval;
   searches: typeof searches;
+  siteStats: typeof siteStats;
 }>;
 
 /**

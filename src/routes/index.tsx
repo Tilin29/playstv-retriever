@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { ClipLinksButton } from '@/features/clip-links'
 import { RecentProfiles } from '@/features/recent-profiles'
+import { ArchiveStats } from '@/features/site-stats'
 import { UsernameSearchForm } from '@/features/user-search'
 
 export const Route = createFileRoute('/')({
@@ -27,6 +28,7 @@ function HomePage() {
         Not affiliated with Plays.tv or the Internet Archive.
       </p>
       <RecentProfiles />
+      <ArchiveStats />
     </section>
   )
 }

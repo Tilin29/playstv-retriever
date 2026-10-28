@@ -188,7 +188,7 @@ export async function saveShortLink(
 export async function findClipPage(gate: ArchiveGate, videoId: string): Promise<ClipPage | null> {
   const [embedUrl] = clipPageUrls(videoId)
   const direct = await fetchClosestCaptureHtml(gate, PLAYSTV_SHUTDOWN_TIMESTAMP, embedUrl)
-  const parsedDirect = direct && parseClipPage(direct.html, videoId)
+  const parsedDirect = direct && parseClipPage(direct.html, videoId, direct.snapshot.timestamp)
   if (parsedDirect) return { ...parsedDirect, snapshot: direct.snapshot }
 
   // Captures saved with a query string or a title slug in the URL only show up in a search.
@@ -196,7 +196,7 @@ export async function findClipPage(gate: ArchiveGate, videoId: string): Promise<
     const captures = await listCaptures(gate, prefix.replace(/^https:\/\//, ''))
     for (const snapshot of captures.slice(0, MAX_FALLBACK_CAPTURES)) {
       const html = await fetchCaptureHtml(gate, snapshot)
-      const parsed = html && parseClipPage(html, videoId)
+      const parsed = html && parseClipPage(html, videoId, snapshot.timestamp)
       if (parsed) return { ...parsed, snapshot }
     }
   }

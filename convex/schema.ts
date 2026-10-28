@@ -93,6 +93,24 @@ export const clipFields = {
   gameName: v.optional(v.string()),
 }
 
+/** Clips uploaded to Plays.tv in one year, and how many of them have a full video. */
+export const yearCount = v.object({
+  year: v.number(),
+  found: v.number(),
+  recovered: v.number(),
+})
+
+/** What the archive stats count; also the running totals while they're recounted. */
+export const siteStatsFields = {
+  // Usernames looked up that were or weren't found in the Wayback Machine.
+  usernamesSearched: v.number(),
+  profilesFound: v.number(),
+  clipsFound: v.number(),
+  clipsRecovered: v.number(),
+  // Oldest year first. Clips without an upload date are only in the totals.
+  byYear: v.array(yearCount),
+}
+
 export default defineSchema({
   // One row per looked-up username. Profiles, clips and their stored files are kept for good.
   profiles: defineTable({
@@ -242,6 +260,13 @@ export default defineSchema({
     flagged: v.number(),
     startedAt: v.number(),
     finishedAt: v.optional(v.number()),
+  }),
+
+  // Singleton: the home page's archive stats, recounted every 30 minutes (see
+  // model/siteStats.ts). Hidden profiles and blacklisted clips aren't counted.
+  siteStats: defineTable({
+    ...siteStatsFields,
+    updatedAt: v.number(),
   }),
 
   // Signed-in admin panels. Only a hash of the token is stored; each row is deleted

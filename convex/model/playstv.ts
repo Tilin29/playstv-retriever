@@ -1,4 +1,5 @@
 // Parsing for archived Plays.tv pages. Pure functions: no Convex or network access.
+import { waybackTimestampToMs } from './wayback'
 
 export type ParsedClip = {
   videoId: string
@@ -81,8 +82,11 @@ export function cdnHostVariants(cdnHost: string) {
   return [cdnHost, `d${match[1] === '0' ? '1' : '0'}${match[2]}`]
 }
 
-/** Reads the clip list from the page's JSON-LD ProfilePage block, plus name and avatar. */
-export function parseProfilePage(html: string): ParsedProfilePage {
+/**
+ * Reads the clip list from the page's JSON-LD ProfilePage block, plus name and avatar.
+ * `capturedAt` is the capture's Wayback timestamp, for dates shown without a year.
+ */
+export function parseProfilePage(html: string, capturedAt: string): ParsedProfilePage {
   const clips = new Map<string, ParsedClip>()
   for (const [, json] of html.matchAll(LD_JSON_PATTERN)) {
     let data: unknown
@@ -100,7 +104,7 @@ export function parseProfilePage(html: string): ParsedProfilePage {
   }
 
   // The HTML list can hold clips the JSON-LD block left out, and it alone names the game.
-  for (const clip of parseVideoListItems(html)) {
+  for (const clip of parseVideoListItems(html, capturedAt)) {
     const existing = clips.get(clip.videoId)
     if (!existing) clips.set(clip.videoId, clip)
     else if (clip.gameId && !existing.gameId) {
@@ -146,15 +150,18 @@ export function videosModuleUrl(config: VideosModuleConfig) {
   return `https://plays.tv/ws/module?${params}`
 }
 
-/** Parses a "load more" response: a JSON envelope whose `body` is the clip list HTML. */
-export function parseVideosModulePage(json: string): ParsedVideosModulePage {
+/**
+ * Parses a "load more" response: a JSON envelope whose `body` is the clip list HTML.
+ * `capturedAt` is the capture's Wayback timestamp, for dates shown without a year.
+ */
+export function parseVideosModulePage(json: string, capturedAt: string): ParsedVideosModulePage {
   let data: { body?: unknown; config?: unknown }
   try {
     data = JSON.parse(json)
   } catch {
     return { clips: [], nextVideosPage: null }
   }
-  const clips = typeof data.body === 'string' ? parseVideoListItems(data.body) : []
+  const clips = typeof data.body === 'string' ? parseVideoListItems(data.body, capturedAt) : []
   return {
     clips,
     nextVideosPage: clips.length > 0 ? toVideosModuleConfig(data.config) : null,
@@ -170,15 +177,14 @@ const ITEM_CREATED_PATTERN = /class="created">([^<]+)</
 const ITEM_GAME_PATTERN = /<a class="hashtag[^"]*" href="\/game\/[^"?]*\?game_id=([0-9a-f]+)[^"]*">([^<]+)</
 
 /** Parses the `<li class="video-item">` entries of a Plays.tv clip list. */
-function parseVideoListItems(html: string): ParsedClip[] {
+function parseVideoListItems(html: string, capturedAt: string): ParsedClip[] {
   const clips: ParsedClip[] = []
   for (const [, videoId, item] of html.matchAll(VIDEO_ITEM_PATTERN)) {
     const mediaPath = ITEM_MEDIA_PATTERN.exec(item)?.[1] ?? ITEM_THUMBNAIL_PATTERN.exec(item)?.[1]
     const media = mediaPath ? MEDIA_URL_PATTERN.exec(mediaPath) : null
     if (!media) continue
 
-    const created = ITEM_CREATED_PATTERN.exec(item)?.[1]
-    const uploadedAt = created ? Date.parse(created) : NaN
+    const uploadedAt = parseShownDate(ITEM_CREATED_PATTERN.exec(item)?.[1], capturedAt)
     const game = ITEM_GAME_PATTERN.exec(item)
     clips.push({
       videoId,
@@ -186,12 +192,33 @@ function parseVideoListItems(html: string): ParsedClip[] {
       mediaId: media[2],
       title: decodeHtmlEntities(ITEM_TITLE_PATTERN.exec(item)?.[1]?.trim() || 'Untitled clip'),
       durationSeconds: parseClockDuration(ITEM_DURATION_PATTERN.exec(item)?.[1]),
-      uploadedAt: Number.isNaN(uploadedAt) ? undefined : uploadedAt,
+      uploadedAt,
       gameId: game?.[1],
       gameName: game ? decodeHtmlEntities(game[2].trim()) : undefined,
     })
   }
   return clips
+}
+
+const YEAR_PATTERN = /\b\d{4}\b/
+
+/**
+ * Parses a date as Plays.tv showed it, e.g. "Mar 3, 2018". Dates in the year the page
+ * was captured were shown without one ("Mar 3"), which would otherwise parse as 2001;
+ * they get the capture's year, or the year before when that would put them after it.
+ */
+export function parseShownDate(text: string | undefined, capturedAt: string) {
+  const shown = text?.trim()
+  if (!shown) return undefined
+  if (YEAR_PATTERN.test(shown)) {
+    const date = Date.parse(shown)
+    return Number.isNaN(date) ? undefined : date
+  }
+  const captured = waybackTimestampToMs(capturedAt)
+  const year = new Date(captured).getUTCFullYear()
+  const date = Date.parse(`${shown} ${year}`)
+  if (Number.isNaN(date)) return undefined
+  return date > captured ? Date.parse(`${shown} ${year - 1}`) : date
 }
 
 /** A clip's page id in a pasted link: plays.tv/video/<id>/<slug> or plays.tv/embeds/<id>. */
@@ -235,7 +262,11 @@ const PAGE_POSTED_PATTERN = /<div class="post"><span class="time">([^<]+)</
  * Reads one clip from its archived embed or video page: the media files, title, game,
  * length and who uploaded it. Null when the page doesn't show this clip.
  */
-export function parseClipPage(rawHtml: string, videoId: string): ParsedClipPage | null {
+export function parseClipPage(
+  rawHtml: string,
+  videoId: string,
+  capturedAt: string,
+): ParsedClipPage | null {
   // Unescapes the script strings, so both layouts read the same.
   const html = rawHtml.replaceAll('\\/', '/').replaceAll('\\"', '"')
   if (!html.includes(videoId)) return null
@@ -257,8 +288,7 @@ export function parseClipPage(rawHtml: string, videoId: string): ParsedClipPage 
   const length = new RegExp(`data-feed-id="${videoId}"\\s+data-ad="[^"]*?length%3D([\\d.]+)`).exec(
     html,
   )?.[1]
-  const posted = PAGE_POSTED_PATTERN.exec(html)?.[1]
-  const uploadedAt = posted ? Date.parse(posted) : NaN
+  const uploadedAt = parseShownDate(PAGE_POSTED_PATTERN.exec(html)?.[1], capturedAt)
   return {
     ownerUsername,
     clip: {
@@ -269,7 +299,7 @@ export function parseClipPage(rawHtml: string, videoId: string): ParsedClipPage 
       durationSeconds: length
         ? Math.round(Number(length))
         : parseClockDuration(PAGE_DURATION_PATTERN.exec(html)?.[1]),
-      uploadedAt: Number.isNaN(uploadedAt) ? undefined : uploadedAt,
+      uploadedAt,
       gameId: game?.[1],
       gameName: game ? decodeHtmlEntities(game[2].trim()) : undefined,
     },

@@ -95,7 +95,7 @@ export async function scrapeProfile(gate: ArchiveGate, username: string) {
   for (const { snapshot } of pages) {
     const html = await fetchCaptureHtml(gate, snapshot)
     if (!html) continue
-    const parsed = parseProfilePage(html)
+    const parsed = parseProfilePage(html, snapshot.timestamp)
     primary ??= { snapshot, displayName: parsed.displayName, avatarUrl: parsed.avatarUrl }
     if (parsed.nextVideosPage) nextVideosPage ??= { snapshot, config: parsed.nextVideosPage }
     addClips(parsed.clips)
@@ -118,7 +118,7 @@ export async function scrapeProfile(gate: ArchiveGate, username: string) {
       break
     }
     if (!json) break
-    const parsed = parseVideosModulePage(json)
+    const parsed = parseVideosModulePage(json, snapshot.timestamp)
     addClips(parsed.clips)
     nextVideosPage = parsed.nextVideosPage ? { snapshot, config: parsed.nextVideosPage } : null
   }

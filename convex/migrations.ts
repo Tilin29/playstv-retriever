@@ -4,6 +4,7 @@ import type { Id } from './_generated/dataModel'
 import { internalAction, internalMutation, internalQuery } from './_generated/server'
 import { archiveGate } from './model/archive'
 import { addGames, countRecoveredClip } from './model/games'
+import { parseShownDate } from './model/playstv'
 import { countClips, countRecoveredClips } from './model/profiles'
 import { scrapeProfile } from './retrieval'
 
@@ -140,5 +141,52 @@ export const saveClipGames = internalMutation({
     }
     for (const [gameId, count] of recoveredPerGame) await countRecoveredClip(ctx, gameId, count)
     return updated
+  },
+})
+
+/** Earlier than any Plays.tv upload: dates before it were shown without a year. */
+const MISREAD_DATES_BEFORE = Date.UTC(2014, 0, 1)
+
+/**
+ * Corrects the upload dates of clips listed without a year ("Mar 3"), which were stored
+ * as 2001: they get the year of their profile's capture (see `parseShownDate`). Run once
+ * with `npx convex run migrations:fixYearlessUploadDates`; it schedules itself until done.
+ */
+export const fixYearlessUploadDates = internalMutation({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, { cursor }) => {
+    const { page, isDone, continueCursor } = await ctx.db
+      .query('profiles')
+      .paginate({ numItems: BACKFILL_BATCH_SIZE, cursor: cursor ?? null })
+
+    let fixed = 0
+    for (const profile of page) {
+      const capturedAt = profile.snapshotTimestamp
+      if (!capturedAt) continue
+      const clips = ctx.db
+        .query('clips')
+        .withIndex('by_profileId_and_uploadedAt', (q) =>
+          q.eq('profileId', profile._id).gte('uploadedAt', 0).lt('uploadedAt', MISREAD_DATES_BEFORE),
+        )
+      for await (const clip of clips) {
+        const shown = new Date(clip.uploadedAt!).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'UTC',
+        })
+        const uploadedAt = parseShownDate(shown, capturedAt)
+        if (uploadedAt === undefined) continue
+        await ctx.db.patch('clips', clip._id, { uploadedAt })
+        fixed++
+      }
+    }
+    if (fixed > 0) console.log(`fixYearlessUploadDates: fixed ${fixed} clips`)
+
+    if (!isDone) {
+      await ctx.scheduler.runAfter(0, internal.migrations.fixYearlessUploadDates, {
+        cursor: continueCursor,
+      })
+    }
+    return null
   },
 })

@@ -101,6 +101,20 @@ export function captureUrl(timestamp: string, originalUrl: string) {
   return `${WAYBACK_ORIGIN}/web/${timestamp}/${originalUrl}`
 }
 
+/** When a capture was made, from its timestamp ("20190901123456", UTC; may be shortened). */
+export function waybackTimestampToMs(timestamp: string) {
+  const part = (start: number, length: number, fallback: number) =>
+    Number(timestamp.slice(start, start + length)) || fallback
+  return Date.UTC(
+    part(0, 4, 1970),
+    part(4, 2, 1) - 1,
+    part(6, 2, 1),
+    part(8, 2, 0),
+    part(10, 2, 0),
+    part(12, 2, 0),
+  )
+}
+
 function parseRawCaptureUrl(url: string): Snapshot | null {
   const match = RAW_CAPTURE_PATH_PATTERN.exec(url)
   return match ? { timestamp: match[1], url: match[2] } : null
