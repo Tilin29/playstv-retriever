@@ -62,8 +62,9 @@ export function TermsOfService() {
           anonymous.
         </p>
         <p>
-          Reports are reviewed by an administrator. If a clip is found to break these terms, we
-          may, at our discretion and without notice:
+          Reports are reviewed by an administrator. We may also review clips and titles on our
+          own, including with automated checks for offensive words in titles. If a clip is
+          found to break these terms, we may, at our discretion and without notice:
         </p>
         <ul className="list-disc space-y-1 pl-5">
           <li>
@@ -74,10 +75,51 @@ export function TermsOfService() {
             hide its title, which then shows as <em>(Title removed due to TOS violation)</em>.
           </li>
         </ul>
+      </Section>
+
+      <Section title="4. Why a clip or its title may be removed">
         <p>
-          This is the only way content is removed from {APP_NAME}. If you are the person shown
-          in a clip, or own the rights to it, report it with the matching reason and add
-          details that help us confirm the problem. We may restore content we removed by
+          A clip may be removed from the website, or its title hidden, if the clip or its
+          title:
+        </p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            contains slurs, hate speech or symbols, or attacks people for their race,
+            ethnicity, nationality, religion, sex, gender identity, sexual orientation,
+            disability or similar characteristics;
+          </li>
+          <li>harasses, bullies, threatens or mocks a specific person;</li>
+          <li>contains nudity or sexual content, or anything sexualising minors;</li>
+          <li>shows real-world violence, gore, self-harm or animal cruelty;</li>
+          <li>
+            reveals someone's personal information, such as their real name, address, phone
+            number or other private details, without their consent;
+          </li>
+          <li>shows, promotes or encourages illegal activity;</li>
+          <li>is spam, a scam, advertising, or misleading about what the clip shows;</li>
+          <li>
+            infringes someone's copyright or other rights, or the rights holder asks for it to
+            be removed;
+          </li>
+          <li>is requested to be removed by the person who uploaded it or who appears in it; or</li>
+          <li>
+            otherwise breaks the law, or is something we reasonably consider harmful or
+            inappropriate for the website.
+          </li>
+        </ul>
+        <p>
+          When only the title is the problem (for example, it contains a slur but the clip
+          itself is fine), we usually hide the title and keep the clip. When the clip itself is
+          the problem, it is removed. Either decision is ours to make, and we don't have to
+          give a reason for a particular one.
+        </p>
+      </Section>
+
+      <Section title="5. How to ask for removal">
+        <p>
+          The Report button is the only way to ask for content to be removed from {APP_NAME}.
+          If you are the person shown in a clip, or own the rights to it, report it with the
+          matching reason and add details that help us confirm the problem. We may restore content we removed by
           mistake.
         </p>
         <p>
@@ -86,7 +128,7 @@ export function TermsOfService() {
         </p>
       </Section>
 
-      <Section title="4. Using the website">
+      <Section title="6. Using the website">
         <p>You agree not to:</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>use the website for anything unlawful, or to harass or harm anyone;</li>
@@ -111,7 +153,7 @@ export function TermsOfService() {
         </p>
       </Section>
 
-      <Section title="5. Privacy">
+      <Section title="7. Privacy">
         <p>
           There are no accounts and we don't collect personal information about visitors. We
           keep the usernames and clip links that are searched for, whether each search found
@@ -120,7 +162,7 @@ export function TermsOfService() {
         </p>
       </Section>
 
-      <Section title="6. No warranty">
+      <Section title="8. No warranty">
         <p>
           The website is provided “as is” and “as available”, for free, without warranties of
           any kind, express or implied, including fitness for a particular purpose,
@@ -131,7 +173,7 @@ export function TermsOfService() {
         </p>
       </Section>
 
-      <Section title="7. Limitation of liability">
+      <Section title="9. Limitation of liability">
         <p>
           To the fullest extent permitted by law, {APP_NAME} and the people who run it are not
           liable for any indirect, incidental, special, consequential or punitive damages, or
@@ -141,7 +183,7 @@ export function TermsOfService() {
         </p>
       </Section>
 
-      <Section title="8. Indemnity">
+      <Section title="10. Indemnity">
         <p>
           You agree to hold {APP_NAME} and the people who run it harmless from any claims,
           damages or costs arising from your breach of these terms or your use of content
@@ -149,7 +191,7 @@ export function TermsOfService() {
         </p>
       </Section>
 
-      <Section title="9. Changes to these terms">
+      <Section title="11. Changes to these terms">
         <p>
           We may update these terms from time to time. The effective date above shows when they
           last changed. Continuing to use the website after a change means you accept the
@@ -157,7 +199,7 @@ export function TermsOfService() {
         </p>
       </Section>
 
-      <Section title="10. General">
+      <Section title="12. General">
         <p>
           If any part of these terms is found unenforceable, the rest still applies. Not
           enforcing a part of these terms doesn't waive our right to enforce it later. These
