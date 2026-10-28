@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import type { ReportedClip } from '../hooks/use-moderation'
 
@@ -32,7 +33,14 @@ export function ModeratedClip({
       )}
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-col gap-1">
-          <p className="font-medium leading-snug break-words">{clip.title}</p>
+          <p className="font-medium leading-snug break-words">
+            {clip.title}
+            {clip.titleHidden && (
+              <Badge variant="outline" className="ml-2 align-middle">
+                Title hidden
+              </Badge>
+            )}
+          </p>
           <Link
             to="/u/$username"
             params={{ username: owner.usernameKey }}

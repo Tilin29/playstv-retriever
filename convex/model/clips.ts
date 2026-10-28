@@ -63,23 +63,37 @@ export async function toOwnedClipView(
   ctx: QueryCtx,
   clip: Doc<'clips'>,
   loadOwner: ReturnType<typeof createOwnerLoader>,
+  options?: ClipViewOptions,
 ) {
   const owner = await loadOwner(clip.profileId)
   if (!owner) return null
   const { timestamp, ...ownerView } = owner
-  return { ...(await toClipView(ctx, clip, timestamp)), owner: ownerView }
+  return { ...(await toClipView(ctx, clip, timestamp, options)), owner: ownerView }
 }
 
-/** What the app shows of a clip. `timestamp` is its profile's snapshot. */
-export async function toClipView(ctx: QueryCtx, clip: Doc<'clips'>, timestamp: string) {
+/** `revealTitle`: include a hidden title, for the admin panel. */
+type ClipViewOptions = { revealTitle?: boolean }
+
+/**
+ * What the app shows of a clip. `timestamp` is its profile's snapshot. A title an admin
+ * hid is null (with `titleHidden` set) unless `revealTitle` is set.
+ */
+export async function toClipView(
+  ctx: QueryCtx,
+  clip: Doc<'clips'>,
+  timestamp: string,
+  { revealTitle = false }: ClipViewOptions = {},
+) {
   // Until a copy is stored, previews play straight from the Wayback Machine
   // (unless the download already found that the Archive never saved them).
   const archived = (file: Parameters<typeof clipMediaUrl>[1]) =>
     clip.mediaStatus === 'missing' ? null : rawCaptureUrl(timestamp, clipMediaUrl(clip, file))
+  const titleHidden = clip.titleHidden ?? false
 
   return {
     _id: clip._id,
-    title: clip.title,
+    title: titleHidden && !revealTitle ? null : clip.title,
+    titleHidden,
     durationSeconds: clip.durationSeconds ?? null,
     uploadedAt: clip.uploadedAt ?? null,
     gameName: clip.gameName ?? null,

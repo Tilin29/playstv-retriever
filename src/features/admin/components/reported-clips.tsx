@@ -1,4 +1,4 @@
-import { BanIcon, CheckIcon, ShieldCheckIcon } from 'lucide-react'
+import { BanIcon, CheckIcon, EyeIcon, EyeOffIcon, ShieldCheckIcon } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -67,6 +67,16 @@ export function ReportedClips({
                 <Button variant="outline" disabled={busy} onClick={() => void run('dismiss', clipId)}>
                   <CheckIcon />
                   {busy && pending.action === 'dismiss' ? 'Dismissing…' : 'Keep up'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(entry.clip.titleHidden ? 'showTitle' : 'hideTitle', clipId)
+                  }
+                >
+                  {entry.clip.titleHidden ? <EyeIcon /> : <EyeOffIcon />}
+                  {entry.clip.titleHidden ? 'Show title' : 'Hide title'}
                 </Button>
               </>
             }

@@ -341,22 +341,45 @@ export async function listClipLinkResults(ctx: QueryCtx, keys: string[]) {
   const loadOwner = createOwnerLoader(ctx)
   const results = await Promise.all(
     keys.slice(0, MAX_CLIP_LINKS).map(async (key) => {
-      const parsed = parseLinkKey(key)
-      if (!parsed) return null
-      let videoId: string
-      if (parsed.kind === 'short') {
-        const shortLink = await getShortLink(ctx, parsed.code)
-        if (!shortLink?.videoId) {
-          return { key, status: shortLink?.status ?? ('searching' as const), clip: null }
-        }
-        videoId = shortLink.videoId
-      } else {
-        videoId = parsed.videoId
-      }
-      return { key, ...(await videoLinkResult(ctx, videoId, loadOwner)) }
+      const target = await resolveLinkKey(ctx, key)
+      if (!target) return null
+      if ('status' in target) return { key, status: target.status, clip: null }
+      return { key, ...(await videoLinkResult(ctx, target.videoId, loadOwner)) }
     }),
   )
   return results.filter((result) => result !== null)
+}
+
+/**
+ * The clip page id a link points to, or how its lookup stands when that isn't known
+ * yet (a share link still being resolved). Null for keys that aren't valid links.
+ */
+async function resolveLinkKey(
+  ctx: QueryCtx,
+  key: string,
+): Promise<{ videoId: string } | { status: Doc<'shortLinks'>['status'] } | null> {
+  const parsed = parseLinkKey(key)
+  if (!parsed) return null
+  if (parsed.kind === 'video') return { videoId: parsed.videoId }
+  const shortLink = await getShortLink(ctx, parsed.code)
+  return shortLink?.videoId ? { videoId: shortLink.videoId } : { status: shortLink?.status ?? 'searching' }
+}
+
+/**
+ * Where a link's lookup stands, without loading its clip. For admins: a clip that was
+ * found counts as found even if it was blacklisted since.
+ */
+export async function clipLinkStatus(ctx: QueryCtx, key: string) {
+  const target = await resolveLinkKey(ctx, key)
+  if (!target) return 'not_found'
+  if ('status' in target) return target.status
+  if (await getClipByVideoId(ctx, target.videoId)) return 'found'
+  const status = (await getClipLink(ctx, target.videoId))?.status ?? 'searching'
+  return status === 'found' ? 'not_found' : status
+}
+
+export function isValidLinkKey(key: string) {
+  return parseLinkKey(key) !== null
 }
 
 async function videoLinkResult(

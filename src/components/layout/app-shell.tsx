@@ -43,7 +43,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             Wayback Machine
           </a>
-          .
+          .{' '}
+          <Link to="/terms" className="underline underline-offset-3 hover:text-foreground">
+            Terms of Service
+          </Link>
         </p>
       </footer>
     </div>

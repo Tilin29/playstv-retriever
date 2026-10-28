@@ -107,6 +107,8 @@ export default defineSchema({
     videoStatus: videoStatus,
     videoUrl: v.optional(v.string()),
     videoQuality: v.optional(v.number()),
+    // An admin hid the title for breaking the rules; only admins still see it.
+    titleHidden: v.optional(v.boolean()),
   })
     .index('by_profileId_and_uploadedAt', ['profileId', 'uploadedAt'])
     .index('by_profileId_and_mediaStatus', ['profileId', 'mediaStatus'])
@@ -155,6 +157,14 @@ export default defineSchema({
     status: clipLinkStatus,
     videoId: v.optional(v.string()),
   }).index('by_code', ['code']),
+
+  // What visitors searched for, for the admin panel: a username, or a list of pasted clip
+  // links (keyed as in model/clipLinks.ts). Whether it matched is read live from the
+  // profile or links, since lookups finish after the search. Nothing about the visitor.
+  searches: defineTable({
+    kind: v.union(v.literal('username'), v.literal('links')),
+    terms: v.array(v.string()),
+  }),
 
   // A visitor flagging a clip. Anonymous: nothing about the reporter is kept.
   reports: defineTable({

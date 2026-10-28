@@ -27,6 +27,31 @@ export const listByProfile = query({
   },
 })
 
+/**
+ * What a shared clip link's preview (Discord, etc.) shows. Takes the id as a plain
+ * string, since it comes from a URL. Null for unknown, blacklisted or unwatchable clips.
+ */
+export const getShareInfo = query({
+  args: { clipId: v.string() },
+  handler: async (ctx, { clipId }) => {
+    const id = ctx.db.normalizeId('clips', clipId)
+    const clip = id && (await ctx.db.get('clips', id))
+    if (!clip || clip.videoStatus !== 'available' || (await isBlacklisted(ctx, clip._id))) {
+      return null
+    }
+    const view = await toOwnedClipView(ctx, clip, createOwnerLoader(ctx))
+    if (!view) return null
+    return {
+      // Null when an admin hid it.
+      title: view.title,
+      gameName: view.gameName,
+      username: view.owner.username,
+      uploadedAt: view.uploadedAt,
+      thumbnailUrl: view.thumbnailUrl,
+    }
+  },
+})
+
 /** Looks for a clip's full video again when the Archive didn't respond the first time. */
 export const retryVideo = mutation({
   args: { clipId: v.id('clips') },

@@ -1,5 +1,6 @@
 export { ClipCard } from './components/clip-card'
 export { ClipGrid } from './components/clip-grid'
+export { ClipTitle, clipTitleText } from './components/clip-title'
 export { ClipViewer, type ClipOwner } from './components/clip-viewer'
 export { RecoveredRing } from './components/recovered-ring'
 export { useClips, type Clip } from './hooks/use-clips'

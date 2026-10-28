@@ -4,6 +4,7 @@ import { ArrowRightIcon, SearchIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { useRecordSearch } from '@/hooks/use-record-search'
 import { parseUsername } from '../lib/username'
 
 type UsernameSearchFormProps = {
@@ -13,6 +14,7 @@ type UsernameSearchFormProps = {
 
 export function UsernameSearchForm({ defaultValue = '', autoFocus }: UsernameSearchFormProps) {
   const navigate = useNavigate()
+  const recordSearch = useRecordSearch()
   const [value, setValue] = useState(defaultValue)
   const [error, setError] = useState<string>()
 
@@ -24,6 +26,7 @@ export function UsernameSearchForm({ defaultValue = '', autoFocus }: UsernameSea
       return
     }
     setError(undefined)
+    recordSearch('username', [result.username])
     void navigate({ to: '/u/$username', params: { username: result.username } })
   }
 

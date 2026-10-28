@@ -23,10 +23,12 @@ import type * as model_games from "../model/games.js";
 import type * as model_moderation from "../model/moderation.js";
 import type * as model_playstv from "../model/playstv.js";
 import type * as model_profiles from "../model/profiles.js";
+import type * as model_searches from "../model/searches.js";
 import type * as model_wayback from "../model/wayback.js";
 import type * as profiles from "../profiles.js";
 import type * as reports from "../reports.js";
 import type * as retrieval from "../retrieval.js";
+import type * as searches from "../searches.js";
 
 import type {
   ApiFromModules,
@@ -50,10 +52,12 @@ declare const fullApi: ApiFromModules<{
   "model/moderation": typeof model_moderation;
   "model/playstv": typeof model_playstv;
   "model/profiles": typeof model_profiles;
+  "model/searches": typeof model_searches;
   "model/wayback": typeof model_wayback;
   profiles: typeof profiles;
   reports: typeof reports;
   retrieval: typeof retrieval;
+  searches: typeof searches;
 }>;
 
 /**

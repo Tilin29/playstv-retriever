@@ -30,7 +30,12 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- Link previews (Discord, Facebook, Slack, iMessage, …) -->
+    <!-- The Convex backend, filled in at build time: middleware.ts reads it to give shared
+         clip links their own preview. -->
+    <meta name="convex-url" content="%VITE_CONVEX_URL%" />
+
+    <!-- Link previews (Discord, Facebook, Slack, iMessage, …); middleware.ts replaces
+         these for links to a clip. -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="PlaysTV Retriever" />
     <meta property="og:locale" content="en_US" />

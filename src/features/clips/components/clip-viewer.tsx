@@ -17,10 +17,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { AdminClipControls } from '@/features/admin'
 import { ReportClipButton } from '@/features/reports'
 import { cn } from '@/lib/utils'
 import type { Clip } from '../hooks/use-clips'
 import { formatDate } from '../lib/format'
+import { ClipTitle } from './clip-title'
 import { VideoPlayer } from './video-player'
 
 /** The profile a clip belongs to. */
@@ -91,7 +93,13 @@ export function ClipViewer({
               {shownOwner.username}
             </Link>
           )}
-          <DialogTitle className="leading-snug">{shownClip?.title}</DialogTitle>
+          <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+            <DialogTitle className="min-w-0 flex-1 leading-snug">
+              {shownClip && <ClipTitle clip={shownClip} />}
+            </DialogTitle>
+            {/* Only rendered for a signed-in admin. */}
+            {shownClip && <AdminClipControls clipId={shownClip._id} />}
+          </div>
           {details.length > 0 && <DialogDescription>{details.join(' · ')}</DialogDescription>}
         </DialogHeader>
         {videoUrl && (

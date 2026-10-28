@@ -9,6 +9,7 @@ import type { Clip } from '../hooks/use-clips'
 import { useRetryClipVideo } from '../hooks/use-retry-clip-video'
 import { formatDate, formatDuration } from '../lib/format'
 import { isChecking, isUnrecoverable, isWatchable } from '../lib/status'
+import { ClipTitle, clipTitleText } from './clip-title'
 
 const VIDEO_STATUS_NOTES: Partial<Record<Clip['videoStatus'], string>> = {
   checking: 'Checking the archive…',
@@ -102,7 +103,9 @@ export function ClipCard({
         )}
       </div>
       <CardHeader>
-        <CardTitle className="line-clamp-2">{clip.title}</CardTitle>
+        <CardTitle className="line-clamp-2">
+          <ClipTitle clip={clip} />
+        </CardTitle>
         <CardDescription>{details.join(' · ')}</CardDescription>
         {clip.videoStatus === 'failed' && (
           <CardAction>
@@ -129,7 +132,7 @@ export function ClipCard({
   return (
     <button
       type="button"
-      aria-label={`Watch "${clip.title}"`}
+      aria-label={`Watch "${clipTitleText(clip)}"`}
       className="group block w-full cursor-pointer rounded-xl text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       onClick={() => {
         setPreviewing(false)

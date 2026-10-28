@@ -1,10 +1,12 @@
 // The admin panel's API. Every function but `signIn` takes the session token that
 // `signIn` returned and checks it before doing anything.
+import { paginationOptsValidator } from 'convex/server'
 import { ConvexError, v } from 'convex/values'
 import { internal } from './_generated/api'
 import { action, env, internalMutation, mutation, query } from './_generated/server'
 import * as Admin from './model/admin'
 import * as Moderation from './model/moderation'
+import * as Searches from './model/searches'
 
 const MAX_BLACKLISTED = 200
 
@@ -99,6 +101,35 @@ export const dismissReports = mutation({
     await Admin.requireAdmin(ctx, sessionToken)
     await Moderation.dismissReports(ctx, clipId)
     return null
+  },
+})
+
+export const setTitleHidden = mutation({
+  args: { sessionToken: v.string(), clipId: v.id('clips'), hidden: v.boolean() },
+  handler: async (ctx, { sessionToken, clipId, hidden }) => {
+    await Admin.requireAdmin(ctx, sessionToken)
+    await Moderation.setTitleHidden(ctx, clipId, hidden)
+    return null
+  },
+})
+
+/** A clip's real title and moderation state, for the viewer's admin controls. */
+export const getClip = query({
+  args: { sessionToken: v.string(), clipId: v.id('clips') },
+  handler: async (ctx, { sessionToken, clipId }) => {
+    if (!(await Admin.isAdmin(ctx, sessionToken))) return null
+    return await Moderation.getClipModeration(ctx, clipId)
+  },
+})
+
+/** What visitors searched for, newest first, with what each search found. */
+export const listSearches = query({
+  args: { sessionToken: v.string(), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { sessionToken, paginationOpts }) => {
+    if (!(await Admin.isAdmin(ctx, sessionToken))) {
+      return { page: [], isDone: true, continueCursor: '' }
+    }
+    return await Searches.listSearches(ctx, paginationOpts)
   },
 })
 

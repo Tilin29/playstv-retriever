@@ -8,6 +8,7 @@ import { useAdminSession, useSignOut } from '../hooks/use-admin-session'
 import { useBlacklistedClips, useReportedClips } from '../hooks/use-moderation'
 import { BlacklistedClips } from './blacklisted-clips'
 import { ReportedClips } from './reported-clips'
+import { SearchLog } from './search-log'
 import { SignInForm } from './sign-in-form'
 
 /** Sign-in, then the reported and blacklisted clips. Every action is checked server-side. */
@@ -54,12 +55,16 @@ function Moderation({ sessionToken }: { sessionToken: string }) {
           <TabsTrigger value="blacklisted">
             Blacklisted{blacklisted !== undefined && ` (${blacklisted.length})`}
           </TabsTrigger>
+          <TabsTrigger value="searches">Searches</TabsTrigger>
         </TabsList>
         <TabsContent value="reports">
           <ReportedClips sessionToken={sessionToken} reported={reported} />
         </TabsContent>
         <TabsContent value="blacklisted">
           <BlacklistedClips sessionToken={sessionToken} blacklisted={blacklisted} />
+        </TabsContent>
+        <TabsContent value="searches">
+          <SearchLog sessionToken={sessionToken} />
         </TabsContent>
       </Tabs>
     </section>

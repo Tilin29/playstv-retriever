@@ -102,7 +102,7 @@ export async function listOpenReports(ctx: QueryCtx) {
   const entries = await Promise.all(
     Array.from(byClip, async ([clipId, clipReports]) => {
       const clip = await ctx.db.get('clips', clipId)
-      const view = clip && (await toOwnedClipView(ctx, clip, loadOwner))
+      const view = clip && (await toOwnedClipView(ctx, clip, loadOwner, { revealTitle: true }))
       if (!view) return null
       return {
         clip: view,
@@ -185,7 +185,7 @@ export async function listBlacklisted(ctx: QueryCtx, limit: number) {
   const views = await Promise.all(
     entries.map(async (entry) => {
       const clip = await ctx.db.get('clips', entry.clipId)
-      const view = clip && (await toOwnedClipView(ctx, clip, loadOwner))
+      const view = clip && (await toOwnedClipView(ctx, clip, loadOwner, { revealTitle: true }))
       if (!view) return null
       return {
         clip: view,
@@ -195,4 +195,22 @@ export async function listBlacklisted(ctx: QueryCtx, limit: number) {
     }),
   )
   return views.filter((view) => view !== null)
+}
+
+/** Hides or shows a clip's title for everyone but admins. */
+export async function setTitleHidden(ctx: MutationCtx, clipId: Id<'clips'>, hidden: boolean) {
+  const clip = await ctx.db.get('clips', clipId)
+  if (!clip) throw new ConvexError('Clip not found')
+  await ctx.db.patch('clips', clipId, { titleHidden: hidden || undefined })
+}
+
+/** What the admin controls in the clip viewer need: the real title and the clip's state. */
+export async function getClipModeration(ctx: QueryCtx, clipId: Id<'clips'>) {
+  const clip = await ctx.db.get('clips', clipId)
+  if (!clip) return null
+  return {
+    title: clip.title,
+    titleHidden: clip.titleHidden ?? false,
+    blacklisted: await isBlacklisted(ctx, clipId),
+  }
 }

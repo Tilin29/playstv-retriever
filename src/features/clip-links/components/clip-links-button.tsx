@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
+import { useRecordSearch } from '@/hooks/use-record-search'
 import { cn } from '@/lib/utils'
 import { MAX_CLIP_LINKS, parseClipLinks } from '../lib/parse-links'
 
@@ -35,6 +36,7 @@ export function ClipLinksButton({ variant = 'outline' }: { variant?: 'outline' |
 
 function ClipLinksForm({ onDone }: { onDone: () => void }) {
   const navigate = useNavigate()
+  const recordSearch = useRecordSearch()
   const [text, setText] = useState('')
   const [error, setError] = useState<string>()
   const { keys, lines, invalidCount } = parseClipLinks(text)
@@ -49,6 +51,7 @@ function ClipLinksForm({ onDone }: { onDone: () => void }) {
       setError(`Look up at most ${MAX_CLIP_LINKS} links at once.`)
       return
     }
+    recordSearch('links', keys)
     onDone()
     void navigate({ to: '/lookup', search: { ids: keys.join(',') } })
   }
