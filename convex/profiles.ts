@@ -26,6 +26,21 @@ export const get = query({
   },
 })
 
+/** What a shared profile link's preview shows (see middleware.ts). */
+export const getShareInfo = query({
+  args: { username: v.string() },
+  handler: async (ctx, { username }) => {
+    const profile = await Profiles.getProfileByUsername(ctx, username)
+    if (!profile || profile.status !== 'ready') return null
+    return {
+      username: profile.username,
+      clipCount: profile.clipCount ?? null,
+      recoveredCount: profile.recoveredCount ?? null,
+      avatarUrl: profile.avatarStorageId ? await ctx.storage.getUrl(profile.avatarStorageId) : null,
+    }
+  },
+})
+
 export const listRecent = query({
   args: { paginationOpts: paginationOptsValidator },
   handler: async (ctx, { paginationOpts }) => {
