@@ -1,9 +1,12 @@
 import { useState } from 'react'
-import { ClockIcon, ImageOffIcon, SearchXIcon } from 'lucide-react'
+import { ClockIcon, ImageOffIcon, RotateCwIcon, SearchXIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import type { Clip } from '../hooks/use-clips'
+import { useRetryClipVideo } from '../hooks/use-retry-clip-video'
 import { formatDate, formatDuration } from '../lib/format'
 import { isChecking, isUnrecoverable, isWatchable } from '../lib/status'
 
@@ -101,6 +104,11 @@ export function ClipCard({
       <CardHeader>
         <CardTitle className="line-clamp-2">{clip.title}</CardTitle>
         <CardDescription>{details.join(' · ')}</CardDescription>
+        {clip.videoStatus === 'failed' && (
+          <CardAction>
+            <RetryVideoButton clipId={clip._id} />
+          </CardAction>
+        )}
       </CardHeader>
     </Card>
   )
@@ -133,5 +141,23 @@ export function ClipCard({
     >
       {card}
     </button>
+  )
+}
+
+/** For clips whose check failed because the Archive didn't respond. */
+function RetryVideoButton({ clipId }: { clipId: Clip['_id'] }) {
+  const { retry, pending, error } = useRetryClipVideo(clipId)
+  return (
+    <Button
+      variant="outline"
+      size="xs"
+      disabled={pending}
+      onClick={() => void retry()}
+      title={error ?? 'Check the Wayback Machine for this clip again'}
+      aria-invalid={error ? true : undefined}
+    >
+      {pending ? <Spinner data-icon="inline-start" /> : <RotateCwIcon data-icon="inline-start" />}
+      Try again
+    </Button>
   )
 }

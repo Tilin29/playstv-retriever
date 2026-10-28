@@ -1,7 +1,22 @@
-import type { Doc } from '../_generated/dataModel'
-import type { QueryCtx } from '../_generated/server'
+import { ConvexError } from 'convex/values'
+import { internal } from '../_generated/api'
+import type { Doc, Id } from '../_generated/dataModel'
+import type { MutationCtx, QueryCtx } from '../_generated/server'
 import { clipMediaUrl } from './playstv'
 import { rawCaptureUrl } from './wayback'
+
+/**
+ * Checks one clip's full video again after the Archive didn't respond the first time.
+ * Only allowed for clips whose check failed.
+ */
+export async function retryClipVideo(ctx: MutationCtx, clipId: Id<'clips'>) {
+  const clip = await ctx.db.get('clips', clipId)
+  if (!clip) throw new ConvexError('Clip not found')
+  if (clip.videoStatus !== 'failed') throw new ConvexError("This clip's check didn't fail")
+
+  await ctx.db.patch('clips', clipId, { videoStatus: 'checking' })
+  await ctx.scheduler.runAfter(0, internal.retrieval.checkOneClipVideo, { clipId })
+}
 
 /** What the app shows of a clip. `timestamp` is its profile's snapshot. */
 export async function toClipView(ctx: QueryCtx, clip: Doc<'clips'>, timestamp: string) {

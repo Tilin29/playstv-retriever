@@ -1,8 +1,8 @@
 import { paginationOptsValidator } from 'convex/server'
 import { v } from 'convex/values'
 import type { Id } from './_generated/dataModel'
-import { query } from './_generated/server'
-import { toClipView } from './model/clips'
+import { mutation, query } from './_generated/server'
+import { retryClipVideo, toClipView } from './model/clips'
 
 const MAX_CLIPS = 500
 
@@ -19,6 +19,15 @@ export const listByProfile = query({
       .order('desc')
       .take(MAX_CLIPS)
     return await Promise.all(clips.map((clip) => toClipView(ctx, clip, timestamp)))
+  },
+})
+
+/** Looks for a clip's full video again when the Archive didn't respond the first time. */
+export const retryVideo = mutation({
+  args: { clipId: v.id('clips') },
+  handler: async (ctx, { clipId }) => {
+    await retryClipVideo(ctx, clipId)
+    return null
   },
 })
 

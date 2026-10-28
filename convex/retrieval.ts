@@ -375,6 +375,22 @@ export const checkProfileVideos = internalAction({
   },
 })
 
+export const getClip = internalQuery({
+  args: { clipId: v.id('clips') },
+  handler: async (ctx, { clipId }) => await ctx.db.get('clips', clipId),
+})
+
+/** Checks a single clip, when someone retries it on its own. */
+export const checkOneClipVideo = internalAction({
+  args: { clipId: v.id('clips') },
+  handler: async (ctx, { clipId }) => {
+    const clip: Doc<'clips'> | null = await ctx.runQuery(internal.retrieval.getClip, { clipId })
+    // A profile-wide check may have picked it up in the meantime.
+    if (clip?.videoStatus === 'checking') await checkClipVideo(ctx, archiveGate(ctx), clip)
+    return null
+  },
+})
+
 type FullVideo = { capture: Snapshot; quality: number }
 
 /**
