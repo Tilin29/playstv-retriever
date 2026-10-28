@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ClockIcon, ImageOffIcon } from 'lucide-react'
+import { ClockIcon, ImageOffIcon, SearchXIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -14,7 +14,16 @@ const VIDEO_STATUS_NOTES: Partial<Record<Clip['videoStatus'], string>> = {
   failed: "The archive didn't respond – retrying on your next visit",
 }
 
-export function ClipCard({ clip, onOpen }: { clip: Clip; onOpen: () => void }) {
+export function ClipCard({
+  clip,
+  justLost,
+  onOpen,
+}: {
+  clip: Clip
+  /** The check just finished without finding the video. */
+  justLost: boolean
+  onOpen: () => void
+}) {
   const [previewing, setPreviewing] = useState(false)
   // Media that failed to load (e.g. the Archive timing out). A stored copy has a
   // different URL, so it is tried again once it arrives.
@@ -38,7 +47,8 @@ export function ClipCard({ clip, onOpen }: { clip: Clip; onOpen: () => void }) {
         'h-full pt-0 transition',
         videoUrl && 'group-hover:ring-foreground/30',
         // The preview of a lost clip plays in full colour so it can still be recognised.
-        unrecoverable && !(previewing && previewUrl) && 'opacity-60 grayscale',
+        // A clip that was just found missing stays in colour while its notice shows.
+        unrecoverable && !justLost && !(previewing && previewUrl) && 'opacity-60 grayscale',
       )}
     >
       <div className="relative aspect-video bg-muted">
@@ -73,6 +83,12 @@ export function ClipCard({ clip, onOpen }: { clip: Clip; onOpen: () => void }) {
           >
             <ClockIcon className="animate-pulse" />
             Checking
+          </Badge>
+        )}
+        {justLost && (
+          <Badge variant="destructive" className="absolute top-2 left-2 bg-background">
+            <SearchXIcon />
+            Clip not found
           </Badge>
         )}
         {clip.durationSeconds !== null && (

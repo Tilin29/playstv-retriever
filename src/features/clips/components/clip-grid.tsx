@@ -9,6 +9,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Id } from '@convex/_generated/dataModel'
 import type { Clip } from '../hooks/use-clips'
+import { useJustLostClips } from '../hooks/use-just-lost-clips'
 import { isUnrecoverable, isWatchable } from '../lib/status'
 import { ClipCard } from './clip-card'
 import { ClipViewer } from './clip-viewer'
@@ -25,6 +26,8 @@ export function ClipGrid({
   openClipId: Id<'clips'> | undefined
   onOpenClipChange: (clipId: Id<'clips'> | undefined) => void
 }) {
+  const justLostIds = useJustLostClips(clips)
+
   if (clips === undefined) {
     return (
       <div className={GRID_CLASSES}>
@@ -51,16 +54,18 @@ export function ClipGrid({
     )
   }
 
-  // Clips still being checked stay with the recoverable ones until the archive answers.
-  const recoverable = clips.filter((clip) => !isUnrecoverable(clip))
-  const unrecoverable = clips.filter(isUnrecoverable)
+  // Clips still being checked stay with the recoverable ones until the archive answers,
+  // and a clip that was just found missing lingers there briefly so the change is seen.
+  const isLost = (clip: Clip) => isUnrecoverable(clip) && !justLostIds.has(clip._id)
+  const recoverable = clips.filter((clip) => !isLost(clip))
+  const unrecoverable = clips.filter(isLost)
   const openClip = clips.find((clip) => clip._id === openClipId && isWatchable(clip)) ?? null
-  const onOpen = (clip: Clip) => onOpenClipChange(clip._id)
+  const sectionProps = { justLostIds, onOpen: (clip: Clip) => onOpenClipChange(clip._id) }
 
   return (
     <div className="flex flex-col gap-8">
-      <ClipSection title="Recoverable" clips={recoverable} onOpen={onOpen} />
-      <ClipSection title="Couldn't be recovered" clips={unrecoverable} onOpen={onOpen} />
+      <ClipSection title="Recoverable" clips={recoverable} {...sectionProps} />
+      <ClipSection title="Couldn't be recovered" clips={unrecoverable} {...sectionProps} />
       <ClipViewer clip={openClip} onClose={() => onOpenClipChange(undefined)} />
     </div>
   )
@@ -69,10 +74,12 @@ export function ClipGrid({
 function ClipSection({
   title,
   clips,
+  justLostIds,
   onOpen,
 }: {
   title: string
   clips: Clip[]
+  justLostIds: ReadonlySet<Id<'clips'>>
   onOpen: (clip: Clip) => void
 }) {
   if (clips.length === 0) return null
@@ -83,7 +90,12 @@ function ClipSection({
       </h2>
       <div className={GRID_CLASSES}>
         {clips.map((clip) => (
-          <ClipCard key={clip._id} clip={clip} onOpen={() => onOpen(clip)} />
+          <ClipCard
+            key={clip._id}
+            clip={clip}
+            justLost={justLostIds.has(clip._id)}
+            onOpen={() => onOpen(clip)}
+          />
         ))}
       </div>
     </section>
