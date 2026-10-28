@@ -1,25 +1,33 @@
 import { v } from 'convex/values'
 import { internal } from './_generated/api'
 import { internalMutation } from './_generated/server'
-import { deleteProfile, getProfileByUsername, RETENTION_MS } from './model/profiles'
+import {
+  deleteProfile,
+  deleteStoredClipMedia,
+  getProfileByUsername,
+  RETENTION_MS,
+} from './model/profiles'
 
-const BATCH_SIZE = 20
+const CLIP_BATCH_SIZE = 100
 
-/** Deletes profiles (with their clips and files) older than the retention period. */
-export const deleteExpiredProfiles = internalMutation({
+/**
+ * Deletes the stored clip previews and thumbnails of profiles older than the
+ * retention period, one batch at a time. The profiles and clips themselves stay.
+ */
+export const deleteExpiredMedia = internalMutation({
   args: {},
   handler: async (ctx) => {
     const cutoff = Date.now() - RETENTION_MS
-    const expired = await ctx.db
+    const profile = await ctx.db
       .query('profiles')
-      .withIndex('by_creation_time', (q) => q.lt('_creationTime', cutoff))
-      .take(BATCH_SIZE)
+      .withIndex('by_mediaExpired', (q) =>
+        q.eq('mediaExpired', undefined).lt('_creationTime', cutoff),
+      )
+      .first()
+    if (!profile) return null
 
-    for (const profile of expired) await deleteProfile(ctx, profile)
-
-    if (expired.length === BATCH_SIZE) {
-      await ctx.scheduler.runAfter(0, internal.cleanup.deleteExpiredProfiles, {})
-    }
+    await deleteStoredClipMedia(ctx, profile, CLIP_BATCH_SIZE)
+    await ctx.scheduler.runAfter(0, internal.cleanup.deleteExpiredMedia, {})
     return null
   },
 })

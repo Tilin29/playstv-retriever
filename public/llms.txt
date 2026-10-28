@@ -13,4 +13,4 @@
 - Free, no account needed.
 - It doesn't collect any private information; everything comes from the publicly available Wayback Machine.
 - Not affiliated with Plays.tv or the Internet Archive.
-- Looked-up profiles are kept for 30 days, then fetched again on the next search.
+- Looked-up profiles are kept. Copies of clip previews and thumbnails are stored for 30 days; after that they load from the Wayback Machine again.

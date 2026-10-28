@@ -1,8 +1,10 @@
+import type { PaginationOptions } from 'convex/server'
+import { ConvexError } from 'convex/values'
 import { internal } from '../_generated/api'
 import type { Doc, Id } from '../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../_generated/server'
 
-/** Retrieved profiles, clips and their files are deleted after this long. */
+/** Stored clip previews and thumbnails are deleted after this long. Profiles are kept. */
 export const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 const USERNAME_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/
@@ -16,10 +18,6 @@ export function toUsernameKey(username: string) {
   return username.toLowerCase()
 }
 
-export function isExpired(profile: Doc<'profiles'>, now: number) {
-  return profile._creationTime + RETENTION_MS <= now
-}
-
 export async function getProfileByUsername(ctx: QueryCtx, username: string) {
   return await ctx.db
     .query('profiles')
@@ -28,18 +26,28 @@ export async function getProfileByUsername(ctx: QueryCtx, username: string) {
 }
 
 /** The most recently retrieved profiles that were found, newest first. */
-export async function listRecentProfiles(ctx: QueryCtx, limit: number) {
+export async function listRecentProfiles(ctx: QueryCtx, paginationOpts: PaginationOptions) {
   return await ctx.db
     .query('profiles')
     .withIndex('by_status', (q) => q.eq('status', 'ready'))
     .order('desc')
-    .take(limit)
+    .paginate(paginationOpts)
 }
 
 /** How many of the profile's clips have a full-length video, counted from the clips. */
 export async function countRecoveredClips(ctx: QueryCtx, profileId: Id<'profiles'>) {
   let count = 0
   for await (const _clip of clipsWithStatus(ctx, profileId, 'videoStatus', 'available')) count++
+  return count
+}
+
+/** How many clips the profile has, counted from the clips. */
+export async function countClips(ctx: QueryCtx, profileId: Id<'profiles'>) {
+  let count = 0
+  const clips = ctx.db
+    .query('clips')
+    .withIndex('by_profileId_and_uploadedAt', (q) => q.eq('profileId', profileId))
+  for await (const _clip of clips) count++
   return count
 }
 
@@ -75,7 +83,7 @@ function clipsWithStatus(
  * the first pass. Does nothing while the profile's downloads are still running.
  */
 export async function retryFailedMedia(ctx: MutationCtx, profile: Doc<'profiles'>) {
-  if (!profile.snapshotTimestamp) return
+  if (!profile.snapshotTimestamp || profile.mediaExpired) return
   if (await clipsWithStatus(ctx, profile._id, 'mediaStatus', 'pending').first()) return
 
   const failedMedia = await clipsWithStatus(ctx, profile._id, 'mediaStatus', 'failed').take(500)
@@ -88,7 +96,56 @@ export async function retryFailedMedia(ctx: MutationCtx, profile: Doc<'profiles'
   }
 }
 
-/** Deletes a profile together with its clips and every stored file. */
+/**
+ * Looks for the full videos of clips that weren't found (or whose check failed) once
+ * more. Only allowed after every clip has been checked.
+ */
+export async function retryMissingVideos(ctx: MutationCtx, profile: Doc<'profiles'>) {
+  for (const status of ['checking', 'rechecking'] as const) {
+    if (await clipsWithStatus(ctx, profile._id, 'videoStatus', status).first()) {
+      throw new ConvexError('Still checking for full videos')
+    }
+  }
+
+  const missing = [
+    ...(await clipsWithStatus(ctx, profile._id, 'videoStatus', 'unavailable').take(500)),
+    ...(await clipsWithStatus(ctx, profile._id, 'videoStatus', 'failed').take(500)),
+  ]
+  for (const clip of missing) await ctx.db.patch('clips', clip._id, { videoStatus: 'checking' })
+  if (missing.length > 0) {
+    await ctx.scheduler.runAfter(0, internal.retrieval.checkProfileVideos, {
+      profileId: profile._id,
+    })
+  }
+}
+
+/**
+ * Deletes up to `limit` of the profile's stored clip previews and thumbnails; their
+ * clips go back to playing previews from the Wayback Machine. Marks the profile once
+ * none are left. Returns whether it finished.
+ */
+export async function deleteStoredClipMedia(
+  ctx: MutationCtx,
+  profile: Doc<'profiles'>,
+  limit: number,
+) {
+  const stored = await clipsWithStatus(ctx, profile._id, 'mediaStatus', 'stored').take(limit)
+  for (const clip of stored) {
+    await deleteFiles(ctx, [clip.previewStorageId, clip.thumbnailStorageId])
+    await ctx.db.patch('clips', clip._id, {
+      mediaStatus: 'expired',
+      previewStorageId: undefined,
+      thumbnailStorageId: undefined,
+    })
+  }
+  if (stored.length < limit) {
+    await ctx.db.patch('profiles', profile._id, { mediaExpired: true })
+    return true
+  }
+  return false
+}
+
+/** Maintenance only: deletes a profile together with its clips and every stored file. */
 export async function deleteProfile(ctx: MutationCtx, profile: Doc<'profiles'>) {
   const clips = ctx.db
     .query('clips')

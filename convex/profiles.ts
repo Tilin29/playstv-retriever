@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from 'convex/server'
 import { ConvexError, v } from 'convex/values'
 import { internal } from './_generated/api'
 import { mutation, query } from './_generated/server'
@@ -20,20 +21,18 @@ export const get = query({
       snapshotViewUrl:
         snapshotTimestamp && snapshotUrl ? captureUrl(snapshotTimestamp, snapshotUrl) : null,
       avatarUrl: avatarStorageId ? await ctx.storage.getUrl(avatarStorageId) : null,
-      expiresAt: profile._creationTime + Profiles.RETENTION_MS,
+      mediaExpiresAt: profile.mediaExpired ? null : profile._creationTime + Profiles.RETENTION_MS,
       clipListIncomplete: profile.clipListIncomplete ?? false,
     }
   },
 })
 
-const RECENT_PROFILES_LIMIT = 8
-
 export const listRecent = query({
-  args: {},
-  handler: async (ctx) => {
-    const profiles = await Profiles.listRecentProfiles(ctx, RECENT_PROFILES_LIMIT)
-    return await Promise.all(
-      profiles.map(async (profile) => ({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { paginationOpts }) => {
+    const result = await Profiles.listRecentProfiles(ctx, paginationOpts)
+    const page = await Promise.all(
+      result.page.map(async (profile) => ({
         _id: profile._id,
         // `username` is the display name; the key is what the profile is looked up by.
         username: profile.username,
@@ -44,12 +43,24 @@ export const listRecent = query({
         avatarUrl: profile.avatarStorageId ? await ctx.storage.getUrl(profile.avatarStorageId) : null,
       })),
     )
+    return { ...result, page }
+  },
+})
+
+/** Searches the Wayback Machine again for the clips whose full video wasn't found. */
+export const retryMissingVideos = mutation({
+  args: { profileId: v.id('profiles') },
+  handler: async (ctx, { profileId }) => {
+    const profile = await ctx.db.get('profiles', profileId)
+    if (!profile || profile.status !== 'ready') throw new ConvexError('Profile not found')
+    await Profiles.retryMissingVideos(ctx, profile)
+    return null
   },
 })
 
 /**
- * Starts retrieving a username from the Wayback Machine, unless a usable result
- * already exists. Failed or expired results are discarded and retried.
+ * Starts retrieving a username from the Wayback Machine, unless it was already
+ * looked up. Profiles are kept for good; a failed lookup is retried in place.
  */
 export const lookup = mutation({
   args: { username: v.string() },
@@ -57,17 +68,22 @@ export const lookup = mutation({
     if (!Profiles.isValidUsername(username)) throw new ConvexError('Invalid username')
 
     const existing = await Profiles.getProfileByUsername(ctx, username)
-    if (existing && existing.status !== 'error' && !Profiles.isExpired(existing, Date.now())) {
+    if (existing && existing.status !== 'error') {
       if (existing.status === 'ready') await Profiles.retryFailedMedia(ctx, existing)
       return existing._id
     }
-    if (existing) await Profiles.deleteProfile(ctx, existing)
 
-    const profileId = await ctx.db.insert('profiles', {
-      usernameKey: Profiles.toUsernameKey(username),
-      username,
-      status: 'searching',
-    })
+    // A failed lookup stored nothing, so it starts over on the same row.
+    let profileId = existing?._id
+    if (profileId) {
+      await ctx.db.patch('profiles', profileId, { username, status: 'searching', error: undefined })
+    } else {
+      profileId = await ctx.db.insert('profiles', {
+        usernameKey: Profiles.toUsernameKey(username),
+        username,
+        status: 'searching',
+      })
+    }
     await ctx.scheduler.runAfter(0, internal.retrieval.retrieveProfile, { profileId, username })
     return profileId
   },

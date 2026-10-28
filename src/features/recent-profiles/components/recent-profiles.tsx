@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RecoveredRing } from '@/features/clips'
-import { useRecentProfiles, type RecentProfile } from '../hooks/use-recent-profiles'
+import {
+  RECENT_PROFILES_PAGE_SIZE,
+  useRecentProfiles,
+  type RecentProfile,
+} from '../hooks/use-recent-profiles'
 import { formatTimeAgo } from '../lib/format'
 
 const CLOCK_TICK_MS = 60_000
@@ -19,21 +25,48 @@ function useNow() {
 }
 
 export function RecentProfiles() {
-  const profiles = useRecentProfiles()
+  const recent = useRecentProfiles()
   const now = useNow()
-  if (profiles?.length === 0) return null
+  if (recent.isEmpty) return null
+
+  // A full page of placeholders when paging, so the list doesn't jump in height.
+  const placeholderCount = recent.hasPrevious ? RECENT_PROFILES_PAGE_SIZE : 4
 
   return (
     <section className="flex w-full flex-col gap-3 text-left">
-      <h2 className="text-sm font-medium text-muted-foreground">Recently recovered</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium text-muted-foreground">Recently recovered</h2>
+        {recent.hasPages && (
+          <div className="flex gap-1">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              aria-label="Previous profiles"
+              disabled={!recent.hasPrevious}
+              onClick={recent.goToPrevious}
+            >
+              <ChevronLeftIcon />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              aria-label="More profiles"
+              disabled={!recent.hasNext}
+              onClick={recent.goToNext}
+            >
+              <ChevronRightIcon />
+            </Button>
+          </div>
+        )}
+      </div>
       <ul className="grid gap-2 sm:grid-cols-2">
-        {profiles
-          ? profiles.map((profile) => (
+        {recent.profiles
+          ? recent.profiles.map((profile) => (
               <li key={profile._id}>
                 <RecentProfileLink profile={profile} now={now} />
               </li>
             ))
-          : Array.from({ length: 4 }, (_, index) => (
+          : Array.from({ length: placeholderCount }, (_, index) => (
               <li key={index}>
                 <Skeleton className="h-19.5 rounded-lg" />
               </li>
@@ -55,7 +88,8 @@ function RecentProfileLink({ profile, now }: { profile: RecentProfile; now: numb
     <Link
       to="/u/$username"
       params={{ username: profile.usernameKey }}
-      className="flex items-center gap-3 rounded-lg border p-2.5 transition-colors hover:bg-muted"
+      // Every card is as tall as one with a ring, whether or not it has one.
+      className="flex min-h-19.5 items-center gap-3 rounded-lg border p-2.5 transition-colors hover:bg-muted"
     >
       <Avatar>
         {profile.avatarUrl && <AvatarImage src={profile.avatarUrl} alt="" />}

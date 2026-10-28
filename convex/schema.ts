@@ -13,6 +13,9 @@ export const mediaStatus = v.union(
   v.literal('stored'),
   v.literal('missing'),
   v.literal('failed'),
+  // The stored copies were deleted after the retention period; previews play from
+  // the Wayback Machine again.
+  v.literal('expired'),
 )
 
 /** Whether the full-length clip (not just its preview) exists in the Wayback Machine. */
@@ -35,7 +38,8 @@ export const clipFields = {
 }
 
 export default defineSchema({
-  // One row per looked-up username. Deleted (with its clips and files) after 30 days.
+  // One row per looked-up username, kept for good. Only the clips' stored previews and
+  // thumbnails are deleted after 30 days (see cleanup.ts).
   profiles: defineTable({
     usernameKey: v.string(),
     username: v.string(),
@@ -46,13 +50,17 @@ export default defineSchema({
     avatarStorageId: v.optional(v.id('_storage')),
     // True when the Archive failed partway through the "load more" pages.
     clipListIncomplete: v.optional(v.boolean()),
+    // Missing on profiles retrieved before it was stored, until the backfill runs.
     clipCount: v.optional(v.number()),
     // How many clips have a full-length video. Missing on profiles retrieved before
     // it was tracked, until `migrations:backfillRecoveredCount` runs.
     recoveredCount: v.optional(v.number()),
+    // Set once the clips' stored files were deleted after the retention period.
+    mediaExpired: v.optional(v.boolean()),
   })
     .index('by_usernameKey', ['usernameKey'])
-    .index('by_status', ['status']),
+    .index('by_status', ['status'])
+    .index('by_mediaExpired', ['mediaExpired']),
 
   // Singleton: when the Archive rate-limits or refuses one request, every action
   // holds off until `pausedUntil` (see model/archive.ts).

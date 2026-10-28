@@ -328,7 +328,10 @@ export const listClipsNeedingVideoCheck = internalQuery({
   },
 })
 
-/** Checks each clip once, right after the profile is retrieved. */
+/**
+ * Checks each clip once, right after the profile is retrieved, and again for the
+ * missing ones when someone asks to search again.
+ */
 export const checkProfileVideos = internalAction({
   args: { profileId: v.id('profiles') },
   handler: async (ctx, { profileId }) => {

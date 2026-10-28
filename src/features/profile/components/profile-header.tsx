@@ -1,9 +1,10 @@
-import { ExternalLinkIcon } from 'lucide-react'
+import { ExternalLinkIcon, RotateCwIcon } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { buttonVariants } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { isWatchable, RecoveredRing, type Clip } from '@/features/clips'
 import type { Profile } from '../hooks/use-profile'
+import { useRetryMissingVideos } from '../hooks/use-retry-missing-videos'
 import { formatExpiry, formatSnapshotDate } from '../lib/format'
 
 export function ProfileHeader({ profile, clips }: { profile: Profile; clips: Clip[] | undefined }) {
@@ -41,31 +42,52 @@ export function ProfileHeader({ profile, clips }: { profile: Profile; clips: Cli
             missing.
           </p>
         )}
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          {progress ? (
-            <>
-              <Spinner />
-              {progress}
-            </>
-          ) : (
-            `Saved here until ${formatExpiry(profile.expiresAt)}`
-          )}
-        </p>
+        {progress ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Spinner />
+            {progress}
+          </p>
+        ) : (
+          profile.mediaExpiresAt !== null && (
+            <p className="text-sm text-muted-foreground">
+              Previews saved here until {formatExpiry(profile.mediaExpiresAt)}
+            </p>
+          )
+        )}
       </div>
       {total > 0 && (
         <RecoveredRing recovered={recovered} total={total} className="size-20 text-base" />
       )}
-      {profile.snapshotViewUrl && (
-        <a
-          href={profile.snapshotViewUrl}
-          target="_blank"
-          rel="noreferrer"
-          className={buttonVariants({ variant: 'outline' })}
-        >
-          View archived page
-          <ExternalLinkIcon data-icon="inline-end" />
-        </a>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {/* Only once every clip was checked, so it can't pile onto a running search. */}
+        {clips && checkingVideos === 0 && recovered < total && (
+          <RetryMissingVideosButton profileId={profile._id} />
+        )}
+        {profile.snapshotViewUrl && (
+          <a
+            href={profile.snapshotViewUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={buttonVariants({ variant: 'outline' })}
+          >
+            View archived page
+            <ExternalLinkIcon data-icon="inline-end" />
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function RetryMissingVideosButton({ profileId }: { profileId: Profile['_id'] }) {
+  const { retry, pending, error } = useRetryMissingVideos(profileId)
+  return (
+    <div className="flex flex-col gap-1">
+      <Button variant="outline" disabled={pending} onClick={() => void retry()}>
+        {pending ? <Spinner data-icon="inline-start" /> : <RotateCwIcon data-icon="inline-start" />}
+        Search again
+      </Button>
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   )
 }
