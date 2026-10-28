@@ -20,10 +20,10 @@ export async function addGames(ctx: MutationCtx, clips: { gameId?: string; gameN
   }
 }
 
-/** Counts one more recovered clip for the game. */
-export async function countRecoveredClip(ctx: MutationCtx, gameId: string) {
+/** Counts `count` more recovered clips for the game. */
+export async function countRecoveredClip(ctx: MutationCtx, gameId: string, count = 1) {
   const game = await getGame(ctx, gameId)
-  if (game) await ctx.db.patch('games', game._id, { recoveredCount: game.recoveredCount + 1 })
+  if (game) await ctx.db.patch('games', game._id, { recoveredCount: game.recoveredCount + count })
 }
 
 /** Games with at least one recovered clip, most recovered first. */

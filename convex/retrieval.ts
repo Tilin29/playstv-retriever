@@ -63,62 +63,78 @@ async function forEachConcurrently<T>(
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
 }
 
+/**
+ * Finds the user's archived profile pages and scrapes their clip list, following the
+ * "load more" pages. Returns null when no profile page was archived.
+ */
+export async function scrapeProfile(gate: ArchiveGate, username: string) {
+  const pages = (await listCaptures(gate, `plays.tv/u/${username}`))
+    .map((snapshot) => ({ snapshot, priority: profilePagePriority(snapshot.url, username) }))
+    .filter((page): page is { snapshot: Snapshot; priority: number } => page.priority !== null)
+    .sort((a, b) => a.priority - b.priority)
+    .slice(0, MAX_PROFILE_PAGES)
+
+  // Clips are merged across pages; the best-ranked page supplies name and avatar.
+  let primary: { snapshot: Snapshot; displayName: string | null; avatarUrl: string | null } | null =
+    null
+  let nextVideosPage: { snapshot: Snapshot; config: VideosModuleConfig } | null = null
+  const clips = new Map<string, ParsedClip>()
+  const addClips = (parsed: ParsedClip[]) => {
+    for (const clip of parsed) {
+      const existing = clips.get(clip.videoId)
+      if (!existing) clips.set(clip.videoId, clip)
+      // Another page's HTML list may name the game the first one left out.
+      else if (clip.gameId && !existing.gameId) {
+        clips.set(clip.videoId, { ...existing, gameId: clip.gameId, gameName: clip.gameName })
+      }
+    }
+  }
+  for (const { snapshot } of pages) {
+    const html = await fetchCaptureHtml(gate, snapshot)
+    if (!html) continue
+    const parsed = parseProfilePage(html)
+    primary ??= { snapshot, displayName: parsed.displayName, avatarUrl: parsed.avatarUrl }
+    if (parsed.nextVideosPage) nextVideosPage ??= { snapshot, config: parsed.nextVideosPage }
+    addClips(parsed.clips)
+  }
+  if (!primary) return null
+
+  // Profile pages only show the newest clips; older ones came from "load more"
+  // requests, which the Archive captured separately. Follow them until they run out.
+  let clipListIncomplete = false
+  for (let page = 0; nextVideosPage && page < MAX_VIDEOS_MODULE_PAGES; page++) {
+    const { snapshot, config } = nextVideosPage
+    let json: string | null
+    try {
+      json = await fetchCaptureHtml(gate, {
+        timestamp: snapshot.timestamp,
+        url: videosModuleUrl(config),
+      })
+    } catch {
+      clipListIncomplete = true
+      break
+    }
+    if (!json) break
+    const parsed = parseVideosModulePage(json)
+    addClips(parsed.clips)
+    nextVideosPage = parsed.nextVideosPage ? { snapshot, config: parsed.nextVideosPage } : null
+  }
+
+  return { primary, clips: [...clips.values()], clipListIncomplete }
+}
+
 /** Finds the user's archived profile pages, scrapes the clip list and stores it. */
 export const retrieveProfile = internalAction({
   args: { profileId: v.id('profiles'), username: v.string() },
   handler: async (ctx, { profileId, username }) => {
     const gate = archiveGate(ctx)
     try {
-      const pages = (await listCaptures(gate, `plays.tv/u/${username}`))
-        .map((snapshot) => ({ snapshot, priority: profilePagePriority(snapshot.url, username) }))
-        .filter((page): page is { snapshot: Snapshot; priority: number } => page.priority !== null)
-        .sort((a, b) => a.priority - b.priority)
-        .slice(0, MAX_PROFILE_PAGES)
-
-      // Clips are merged across pages; the best-ranked page supplies name and avatar.
-      let primary: { snapshot: Snapshot; displayName: string | null; avatarUrl: string | null } | null =
-        null
-      let nextVideosPage: { snapshot: Snapshot; config: VideosModuleConfig } | null = null
-      const clips = new Map<string, ParsedClip>()
-      const addClips = (parsed: ParsedClip[]) => {
-        for (const clip of parsed) {
-          if (!clips.has(clip.videoId)) clips.set(clip.videoId, clip)
-        }
-      }
-      for (const { snapshot } of pages) {
-        const html = await fetchCaptureHtml(gate, snapshot)
-        if (!html) continue
-        const parsed = parseProfilePage(html)
-        primary ??= { snapshot, displayName: parsed.displayName, avatarUrl: parsed.avatarUrl }
-        if (parsed.nextVideosPage) nextVideosPage ??= { snapshot, config: parsed.nextVideosPage }
-        addClips(parsed.clips)
-      }
-
-      if (!primary) {
+      const scraped = await scrapeProfile(gate, username)
+      if (!scraped) {
         await ctx.runMutation(internal.retrieval.markNotFound, { profileId })
         return null
       }
-
-      // Profile pages only show the newest clips; older ones came from "load more"
-      // requests, which the Archive captured separately. Follow them until they run out.
-      let clipListIncomplete = false
-      for (let page = 0; nextVideosPage && page < MAX_VIDEOS_MODULE_PAGES; page++) {
-        const { snapshot, config } = nextVideosPage
-        let json: string | null
-        try {
-          json = await fetchCaptureHtml(gate, {
-            timestamp: snapshot.timestamp,
-            url: videosModuleUrl(config),
-          })
-        } catch {
-          clipListIncomplete = true
-          break
-        }
-        if (!json) break
-        const parsed = parseVideosModulePage(json)
-        addClips(parsed.clips)
-        nextVideosPage = parsed.nextVideosPage ? { snapshot, config: parsed.nextVideosPage } : null
-      }
+      const { primary, clips, clipListIncomplete } = scraped
 
       let avatarStorageId: Id<'_storage'> | undefined
       if (primary.avatarUrl) {
@@ -137,7 +153,7 @@ export const retrieveProfile = internalAction({
         snapshotUrl: primary.snapshot.url,
         avatarStorageId,
         clipListIncomplete,
-        clips: [...clips.values()],
+        clips,
       })
     } catch (error) {
       await ctx.runMutation(internal.retrieval.markFailed, {
