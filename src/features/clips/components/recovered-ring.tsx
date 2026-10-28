@@ -10,7 +10,7 @@ function ringColor(share: number) {
 
 /**
  * A ring that fills up with the share of clips whose full video was recovered,
- * with the percentage and "recovered" in the middle. The text scales with the
+ * with the percentage and "found" in the middle. The text scales with the
  * ring's font size.
  */
 export function RecoveredRing({
@@ -56,7 +56,7 @@ export function RecoveredRing({
       </svg>
       <div className="relative flex flex-col items-center leading-none">
         <span className="font-semibold tabular-nums">{percent}</span>
-        <span className="mt-[0.2em] text-[0.625em] text-muted-foreground">recovered</span>
+        <span className="mt-[0.2em] text-[0.625em] text-muted-foreground">found</span>
       </div>
     </div>
   )
