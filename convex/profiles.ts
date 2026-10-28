@@ -57,7 +57,7 @@ export const lookup = mutation({
 
     const existing = await Profiles.getProfileByUsername(ctx, username)
     if (existing && existing.status !== 'error' && !Profiles.isExpired(existing, Date.now())) {
-      if (existing.status === 'ready') await Profiles.retryFailedClips(ctx, existing)
+      if (existing.status === 'ready') await Profiles.retryFailedMedia(ctx, existing)
       return existing._id
     }
     if (existing) await Profiles.deleteProfile(ctx, existing)

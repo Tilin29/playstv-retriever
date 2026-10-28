@@ -327,7 +327,7 @@ export const listClipsNeedingVideoCheck = internalQuery({
   },
 })
 
-/** Checks each clip once; ones the Archive errored on are retried on a later visit. */
+/** Checks each clip once, right after the profile is retrieved. */
 export const checkProfileVideos = internalAction({
   args: { profileId: v.id('profiles') },
   handler: async (ctx, { profileId }) => {

@@ -11,7 +11,7 @@ const VIDEO_STATUS_NOTES: Partial<Record<Clip['videoStatus'], string>> = {
   checking: 'Checking the archive…',
   rechecking: 'Checking the archive…',
   unavailable: "Couldn't be recovered",
-  failed: "The archive didn't respond – retrying on your next visit",
+  failed: "The archive didn't respond",
 }
 
 export function ClipCard({

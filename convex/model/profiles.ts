@@ -63,32 +63,20 @@ function clipsWithStatus(
 }
 
 /**
- * Re-queues clips whose recovery failed because the Archive errored (as opposed
- * to clips it simply never saved), so a later visit can still recover them.
- * Does nothing while the profile's downloads and checks are still running.
+ * Re-queues previews and thumbnails whose download failed because the Archive
+ * errored, so a later visit can still store them. Full-video checks only run on
+ * the first pass. Does nothing while the profile's downloads are still running.
  */
-export async function retryFailedClips(ctx: MutationCtx, profile: Doc<'profiles'>) {
+export async function retryFailedMedia(ctx: MutationCtx, profile: Doc<'profiles'>) {
   if (!profile.snapshotTimestamp) return
-  const inProgress =
-    (await clipsWithStatus(ctx, profile._id, 'mediaStatus', 'pending').first()) ??
-    (await clipsWithStatus(ctx, profile._id, 'videoStatus', 'checking').first()) ??
-    (await clipsWithStatus(ctx, profile._id, 'videoStatus', 'rechecking').first())
-  if (inProgress) return
+  if (await clipsWithStatus(ctx, profile._id, 'mediaStatus', 'pending').first()) return
 
   const failedMedia = await clipsWithStatus(ctx, profile._id, 'mediaStatus', 'failed').take(500)
-  const failedVideos = await clipsWithStatus(ctx, profile._id, 'videoStatus', 'failed').take(500)
-
   for (const clip of failedMedia) await ctx.db.patch('clips', clip._id, { mediaStatus: 'pending' })
-  for (const clip of failedVideos) await ctx.db.patch('clips', clip._id, { videoStatus: 'checking' })
   if (failedMedia.length > 0) {
     await ctx.scheduler.runAfter(0, internal.retrieval.downloadProfileMedia, {
       profileId: profile._id,
       timestamp: profile.snapshotTimestamp,
-    })
-  }
-  if (failedVideos.length > 0) {
-    await ctx.scheduler.runAfter(0, internal.retrieval.checkProfileVideos, {
-      profileId: profile._id,
     })
   }
 }
