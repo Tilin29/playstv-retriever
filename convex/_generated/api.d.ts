@@ -12,6 +12,7 @@ import type * as archive from "../archive.js";
 import type * as cleanup from "../cleanup.js";
 import type * as clips from "../clips.js";
 import type * as crons from "../crons.js";
+import type * as migrations from "../migrations.js";
 import type * as model_archive from "../model/archive.js";
 import type * as model_playstv from "../model/playstv.js";
 import type * as model_profiles from "../model/profiles.js";
@@ -30,6 +31,7 @@ declare const fullApi: ApiFromModules<{
   cleanup: typeof cleanup;
   clips: typeof clips;
   crons: typeof crons;
+  migrations: typeof migrations;
   "model/archive": typeof model_archive;
   "model/playstv": typeof model_playstv;
   "model/profiles": typeof model_profiles;

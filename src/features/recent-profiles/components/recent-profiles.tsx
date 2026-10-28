@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatRecoveredPercent } from '@/features/clips'
 import { useRecentProfiles, type RecentProfile } from '../hooks/use-recent-profiles'
 import { formatTimeAgo } from '../lib/format'
 
@@ -46,6 +47,9 @@ function RecentProfileLink({ profile, now }: { profile: RecentProfile; now: numb
   const details = [
     profile.clipCount !== null
       ? `${profile.clipCount} ${profile.clipCount === 1 ? 'clip' : 'clips'}`
+      : null,
+    profile.clipCount && profile.recoveredCount !== null
+      ? `${formatRecoveredPercent(profile.recoveredCount, profile.clipCount)} recovered`
       : null,
     formatTimeAgo(profile.retrievedAt, now),
   ].filter(Boolean)

@@ -47,6 +47,9 @@ export default defineSchema({
     // True when the Archive failed partway through the "load more" pages.
     clipListIncomplete: v.optional(v.boolean()),
     clipCount: v.optional(v.number()),
+    // How many clips have a full-length video. Missing on profiles retrieved before
+    // it was tracked, until `migrations:backfillRecoveredCount` runs.
+    recoveredCount: v.optional(v.number()),
   })
     .index('by_usernameKey', ['usernameKey'])
     .index('by_status', ['status']),

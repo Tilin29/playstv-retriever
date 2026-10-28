@@ -2,7 +2,7 @@ import { ExternalLinkIcon } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { buttonVariants } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import type { Clip } from '@/features/clips'
+import { formatRecoveredPercent, isWatchable, type Clip } from '@/features/clips'
 import type { Profile } from '../hooks/use-profile'
 import { formatExpiry, formatSnapshotDate } from '../lib/format'
 
@@ -19,8 +19,10 @@ export function ProfileHeader({ profile, clips }: { profile: Profile; clips: Cli
     ]
       .filter(Boolean)
       .join(' · ') || null
+  const recovered = clips?.filter(isWatchable).length ?? 0
   const facts = [
     clips ? `${clips.length} ${clips.length === 1 ? 'clip' : 'clips'}` : null,
+    total > 0 ? `${recovered} recovered (${formatRecoveredPercent(recovered, total)})` : null,
     profile.snapshotTimestamp ? `Archived ${formatSnapshotDate(profile.snapshotTimestamp)}` : null,
   ].filter(Boolean)
 

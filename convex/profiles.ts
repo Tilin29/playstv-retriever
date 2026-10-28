@@ -39,6 +39,7 @@ export const listRecent = query({
         username: profile.username,
         usernameKey: profile.usernameKey,
         clipCount: profile.clipCount ?? null,
+        recoveredCount: profile.recoveredCount ?? null,
         retrievedAt: profile._creationTime,
         avatarUrl: profile.avatarStorageId ? await ctx.storage.getUrl(profile.avatarStorageId) : null,
       })),

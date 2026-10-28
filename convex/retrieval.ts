@@ -167,6 +167,7 @@ export const saveProfile = internalMutation({
       ...profile,
       status: 'ready',
       clipCount: clips.length,
+      recoveredCount: 0,
     })
 
     for (const clip of clips) {
@@ -402,7 +403,16 @@ export const saveClipVideo = internalMutation({
     videoQuality: v.optional(v.number()),
   },
   handler: async (ctx, { clipId, ...video }) => {
-    if (await ctx.db.get('clips', clipId)) await ctx.db.patch('clips', clipId, video)
+    const clip = await ctx.db.get('clips', clipId)
+    if (!clip) return null
+    await ctx.db.patch('clips', clipId, video)
+
+    if (video.videoStatus === 'available' && clip.videoStatus !== 'available') {
+      const profile = await ctx.db.get('profiles', clip.profileId)
+      if (profile?.recoveredCount !== undefined) {
+        await ctx.db.patch('profiles', profile._id, { recoveredCount: profile.recoveredCount + 1 })
+      }
+    }
     return null
   },
 })

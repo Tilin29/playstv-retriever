@@ -36,6 +36,13 @@ export async function listRecentProfiles(ctx: QueryCtx, limit: number) {
     .take(limit)
 }
 
+/** How many of the profile's clips have a full-length video, counted from the clips. */
+export async function countRecoveredClips(ctx: QueryCtx, profileId: Id<'profiles'>) {
+  let count = 0
+  for await (const _clip of clipsWithStatus(ctx, profileId, 'videoStatus', 'available')) count++
+  return count
+}
+
 export async function deleteFiles(ctx: MutationCtx, storageIds: (Id<'_storage'> | undefined)[]) {
   for (const storageId of storageIds) {
     if (storageId) await ctx.storage.delete(storageId)
