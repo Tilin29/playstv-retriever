@@ -36,6 +36,7 @@ export function ClipCard({
   const checking = isChecking(clip)
 
   const details = [
+    clip.gameName,
     clip.uploadedAt !== null ? formatDate(clip.uploadedAt) : null,
     videoUrl && clip.videoQuality ? `${clip.videoQuality}p` : null,
     VIDEO_STATUS_NOTES[clip.videoStatus],

@@ -8,6 +8,7 @@ import {
   type ActionCtx,
 } from './_generated/server'
 import { archiveGate } from './model/archive'
+import { addGames, countRecoveredClip } from './model/games'
 import {
   cdnHostVariants,
   clipMediaUrl,
@@ -178,6 +179,7 @@ export const saveProfile = internalMutation({
         videoStatus: 'checking',
       })
     }
+    await addGames(ctx, clips)
     // The clips are visible right away (their previews play from the Wayback Machine).
     // Both phases run side by side: they use different Archive endpoints.
     await ctx.scheduler.runAfter(0, internal.retrieval.downloadProfileMedia, {
@@ -415,6 +417,7 @@ export const saveClipVideo = internalMutation({
       if (profile?.recoveredCount !== undefined) {
         await ctx.db.patch('profiles', profile._id, { recoveredCount: profile.recoveredCount + 1 })
       }
+      if (clip.gameId) await countRecoveredClip(ctx, clip.gameId)
     }
     return null
   },

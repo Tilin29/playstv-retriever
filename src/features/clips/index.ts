@@ -1,4 +1,6 @@
+export { ClipCard } from './components/clip-card'
 export { ClipGrid } from './components/clip-grid'
+export { ClipViewer } from './components/clip-viewer'
 export { RecoveredRing } from './components/recovered-ring'
 export { useClips, type Clip } from './hooks/use-clips'
 export { isWatchable } from './lib/status'

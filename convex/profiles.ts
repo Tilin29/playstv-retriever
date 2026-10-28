@@ -21,7 +21,6 @@ export const get = query({
       snapshotViewUrl:
         snapshotTimestamp && snapshotUrl ? captureUrl(snapshotTimestamp, snapshotUrl) : null,
       avatarUrl: avatarStorageId ? await ctx.storage.getUrl(avatarStorageId) : null,
-      mediaExpiresAt: profile.mediaExpired ? null : profile._creationTime + Profiles.RETENTION_MS,
       clipListIncomplete: profile.clipListIncomplete ?? false,
     }
   },

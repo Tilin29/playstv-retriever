@@ -7,6 +7,9 @@ export type ParsedClip = {
   title: string
   durationSeconds?: number
   uploadedAt?: number
+  /** Plays.tv's id for the game; only the HTML clip list has it. */
+  gameId?: string
+  gameName?: string
 }
 
 export type ParsedProfilePage = {
@@ -93,9 +96,13 @@ export function parseProfilePage(html: string): ParsedProfilePage {
     }
   }
 
-  // The HTML list can hold clips the JSON-LD block left out.
+  // The HTML list can hold clips the JSON-LD block left out, and it alone names the game.
   for (const clip of parseVideoListItems(html)) {
-    if (!clips.has(clip.videoId)) clips.set(clip.videoId, clip)
+    const existing = clips.get(clip.videoId)
+    if (!existing) clips.set(clip.videoId, clip)
+    else if (clip.gameId && !existing.gameId) {
+      clips.set(clip.videoId, { ...existing, gameId: clip.gameId, gameName: clip.gameName })
+    }
   }
 
   const ogTitle = readMeta(html, 'og:title')
@@ -157,6 +164,7 @@ const ITEM_THUMBNAIL_PATTERN = /data-lazyload="(\/\/[^/"]+\/video\/[^/"]+\/proce
 const ITEM_TITLE_PATTERN = /class="title">([^<]*)</
 const ITEM_DURATION_PATTERN = /class="duration[^"]*">([\d:]+)</
 const ITEM_CREATED_PATTERN = /class="created">([^<]+)</
+const ITEM_GAME_PATTERN = /<a class="hashtag[^"]*" href="\/game\/[^"?]*\?game_id=([0-9a-f]+)[^"]*">([^<]+)</
 
 /** Parses the `<li class="video-item">` entries of a Plays.tv clip list. */
 function parseVideoListItems(html: string): ParsedClip[] {
@@ -168,6 +176,7 @@ function parseVideoListItems(html: string): ParsedClip[] {
 
     const created = ITEM_CREATED_PATTERN.exec(item)?.[1]
     const uploadedAt = created ? Date.parse(created) : NaN
+    const game = ITEM_GAME_PATTERN.exec(item)
     clips.push({
       videoId,
       cdnHost: media[1],
@@ -175,6 +184,8 @@ function parseVideoListItems(html: string): ParsedClip[] {
       title: decodeHtmlEntities(ITEM_TITLE_PATTERN.exec(item)?.[1]?.trim() || 'Untitled clip'),
       durationSeconds: parseClockDuration(ITEM_DURATION_PATTERN.exec(item)?.[1]),
       uploadedAt: Number.isNaN(uploadedAt) ? undefined : uploadedAt,
+      gameId: game?.[1],
+      gameName: game ? decodeHtmlEntities(game[2].trim()) : undefined,
     })
   }
   return clips

@@ -13,4 +13,5 @@
 - Free, no account needed.
 - It doesn't collect any private information; everything comes from the publicly available Wayback Machine.
 - Not affiliated with Plays.tv or the Internet Archive.
-- Looked-up profiles are kept. Copies of clip previews and thumbnails are stored for 30 days; after that they load from the Wayback Machine again.
+- Looked-up profiles are kept, so a recovered profile loads instantly the next time.
+- A feed at https://playstv-retriever.com/feed shows every recovered clip, newest upload first, and can be filtered by game.

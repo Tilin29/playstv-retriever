@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import logoDark from '@/assets/logo-dark.png'
 import logo from '@/assets/logo.png'
+import { buttonVariants } from '@/components/ui/button'
 import { APP_NAME } from '@/hooks/use-document-title'
 import { ThemeToggle } from './theme-toggle'
 
@@ -15,7 +16,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             <img src={logo} alt={APP_NAME} className="h-7 w-auto dark:hidden" />
             <img src={logoDark} alt={APP_NAME} className="hidden h-7 w-auto dark:block" />
           </Link>
-          <div className="justify-self-end">
+          <div className="flex items-center gap-1 justify-self-end">
+            <Link
+              to="/feed"
+              className={buttonVariants({ variant: 'ghost' })}
+              activeProps={{ 'aria-current': 'page', className: 'bg-muted' }}
+            >
+              Feed
+            </Link>
             <ThemeToggle />
           </div>
         </div>

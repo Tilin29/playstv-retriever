@@ -5,7 +5,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { isWatchable, RecoveredRing, type Clip } from '@/features/clips'
 import type { Profile } from '../hooks/use-profile'
 import { useRetryMissingVideos } from '../hooks/use-retry-missing-videos'
-import { formatExpiry, formatSnapshotDate } from '../lib/format'
+import { formatSnapshotDate } from '../lib/format'
 
 export function ProfileHeader({ profile, clips }: { profile: Profile; clips: Clip[] | undefined }) {
   const total = clips?.length ?? 0
@@ -42,17 +42,11 @@ export function ProfileHeader({ profile, clips }: { profile: Profile; clips: Cli
             missing.
           </p>
         )}
-        {progress ? (
+        {progress && (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <Spinner />
             {progress}
           </p>
-        ) : (
-          profile.mediaExpiresAt !== null && (
-            <p className="text-sm text-muted-foreground">
-              Previews saved here until {formatExpiry(profile.mediaExpiresAt)}
-            </p>
-          )
         )}
       </div>
       {total > 0 && (

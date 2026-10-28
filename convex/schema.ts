@@ -13,8 +13,8 @@ export const mediaStatus = v.union(
   v.literal('stored'),
   v.literal('missing'),
   v.literal('failed'),
-  // The stored copies were deleted after the retention period; previews play from
-  // the Wayback Machine again.
+  // Legacy: the stored copies were deleted by a 30-day cleanup that no longer runs.
+  // Previews play from the Wayback Machine until a revisit stores them again.
   v.literal('expired'),
 )
 
@@ -35,11 +35,13 @@ export const clipFields = {
   title: v.string(),
   durationSeconds: v.optional(v.number()),
   uploadedAt: v.optional(v.number()),
+  // Only on clips retrieved since games were stored.
+  gameId: v.optional(v.string()),
+  gameName: v.optional(v.string()),
 }
 
 export default defineSchema({
-  // One row per looked-up username, kept for good. Only the clips' stored previews and
-  // thumbnails are deleted after 30 days (see cleanup.ts).
+  // One row per looked-up username. Profiles, clips and their stored files are kept for good.
   profiles: defineTable({
     usernameKey: v.string(),
     username: v.string(),
@@ -55,12 +57,11 @@ export default defineSchema({
     // How many clips have a full-length video. Missing on profiles retrieved before
     // it was tracked, until `migrations:backfillRecoveredCount` runs.
     recoveredCount: v.optional(v.number()),
-    // Set once the clips' stored files were deleted after the retention period.
+    // Legacy: set by a 30-day cleanup that no longer runs. Unused.
     mediaExpired: v.optional(v.boolean()),
   })
     .index('by_usernameKey', ['usernameKey'])
-    .index('by_status', ['status'])
-    .index('by_mediaExpired', ['mediaExpired']),
+    .index('by_status', ['status']),
 
   // Singleton: when the Archive rate-limits or refuses one request, every action
   // holds off until `pausedUntil` (see model/archive.ts).
@@ -80,5 +81,18 @@ export default defineSchema({
   })
     .index('by_profileId_and_uploadedAt', ['profileId', 'uploadedAt'])
     .index('by_profileId_and_mediaStatus', ['profileId', 'mediaStatus'])
-    .index('by_profileId_and_videoStatus', ['profileId', 'videoStatus']),
+    .index('by_profileId_and_videoStatus', ['profileId', 'videoStatus'])
+    // The feed: every recovered clip by its original upload date, optionally of one game.
+    .index('by_videoStatus_and_uploadedAt', ['videoStatus', 'uploadedAt'])
+    .index('by_videoStatus_and_gameId_and_uploadedAt', ['videoStatus', 'gameId', 'uploadedAt']),
+
+  // One row per game seen in a clip list, for the feed's game filter.
+  games: defineTable({
+    gameId: v.string(),
+    name: v.string(),
+    // How many of its clips have a full-length video.
+    recoveredCount: v.number(),
+  })
+    .index('by_gameId', ['gameId'])
+    .index('by_recoveredCount', ['recoveredCount']),
 })

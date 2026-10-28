@@ -21,6 +21,7 @@ export function ClipViewer({ clip, onClose }: { clip: Clip | null; onClose: () =
   const videoUrl = shownClip?.videoUrl ?? null
   const details = shownClip
     ? [
+        shownClip.gameName,
         shownClip.uploadedAt !== null ? formatDate(shownClip.uploadedAt) : null,
         shownClip.videoQuality ? `${shownClip.videoQuality}p` : null,
       ].filter(Boolean)
