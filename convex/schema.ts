@@ -35,7 +35,7 @@ export const clipFields = {
 }
 
 export default defineSchema({
-  // One row per looked-up username. Deleted (with its clips and files) after 7 days.
+  // One row per looked-up username. Deleted (with its clips and files) after 30 days.
   profiles: defineTable({
     usernameKey: v.string(),
     username: v.string(),

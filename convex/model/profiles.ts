@@ -3,7 +3,7 @@ import type { Doc, Id } from '../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../_generated/server'
 
 /** Retrieved profiles, clips and their files are deleted after this long. */
-export const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
+export const RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 const USERNAME_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/
 
