@@ -7,6 +7,7 @@ import { action, env, internalMutation, mutation, query } from './_generated/ser
 import * as Admin from './model/admin'
 import * as Moderation from './model/moderation'
 import * as Searches from './model/searches'
+import * as VideoChecks from './model/videoChecks'
 import * as TitleFlags from './model/titleFlags'
 import { titleFlagStatus } from './schema'
 
@@ -133,6 +134,43 @@ export const listSearches = query({
       return { page: [], isDone: true, continueCursor: '' }
     }
     return await Searches.listSearches(ctx, paginationOpts)
+  },
+})
+
+/** Clips whose full-video check failed because the Archive didn't respond. */
+export const listFailedVideoChecks = query({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, { sessionToken }) => {
+    if (!(await Admin.isAdmin(ctx, sessionToken))) return null
+    return await VideoChecks.listFailedVideoChecks(ctx, VideoChecks.MAX_VIDEO_CHECKS)
+  },
+})
+
+/** The given clips as they stand now, to follow their retries. */
+export const getVideoChecks = query({
+  args: { sessionToken: v.string(), clipIds: v.array(v.id('clips')) },
+  handler: async (ctx, { sessionToken, clipIds }) => {
+    if (!(await Admin.isAdmin(ctx, sessionToken))) return null
+    return await VideoChecks.getVideoChecks(ctx, clipIds)
+  },
+})
+
+/** Checks every clip whose check failed again. Returns how many were queued. */
+export const retryFailedVideoChecks = mutation({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, { sessionToken }) => {
+    await Admin.requireAdmin(ctx, sessionToken)
+    return await VideoChecks.retryFailedVideoChecks(ctx, VideoChecks.MAX_VIDEO_CHECKS)
+  },
+})
+
+/** Checks one clip's full video again (one that failed or wasn't found). */
+export const retryVideoCheck = mutation({
+  args: { sessionToken: v.string(), clipId: v.id('clips') },
+  handler: async (ctx, { sessionToken, clipId }) => {
+    await Admin.requireAdmin(ctx, sessionToken)
+    await VideoChecks.retryVideoCheck(ctx, clipId)
+    return null
   },
 })
 

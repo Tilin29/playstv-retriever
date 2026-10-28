@@ -59,6 +59,46 @@ export function useTitleScan(sessionToken: string) {
   return { scan, start, starting, error }
 }
 
+export type VideoCheck = NonNullable<
+  FunctionReturnType<typeof api.admin.getVideoChecks>
+>[number]
+
+/** Clips whose full-video check failed because the Archive didn't respond. */
+export function useFailedVideoChecks(sessionToken: string) {
+  return useQuery(api.admin.listFailedVideoChecks, { sessionToken })
+}
+
+/** The given clips as they stand now, to follow their retries. */
+export function useVideoChecks(sessionToken: string, clipIds: Id<'clips'>[]) {
+  return useQuery(
+    api.admin.getVideoChecks,
+    clipIds.length > 0 ? { sessionToken, clipIds } : 'skip',
+  )
+}
+
+/** Retries every failed check, or one clip's. */
+export function useRetryVideoChecks(sessionToken: string) {
+  const retryAll = useMutation(api.admin.retryFailedVideoChecks)
+  const retryOne = useMutation(api.admin.retryVideoCheck)
+  const [pending, setPending] = useState<Id<'clips'> | 'all'>()
+  const [error, setError] = useState<string>()
+
+  async function run(target: Id<'clips'> | 'all') {
+    setPending(target)
+    setError(undefined)
+    try {
+      if (target === 'all') await retryAll({ sessionToken })
+      else await retryOne({ sessionToken, clipId: target })
+    } catch (caught) {
+      setError(caught instanceof ConvexError ? String(caught.data) : 'Something went wrong')
+    } finally {
+      setPending(undefined)
+    }
+  }
+
+  return { run, pending, error }
+}
+
 export function useSearches(sessionToken: string) {
   return usePaginatedQuery(
     api.admin.listSearches,

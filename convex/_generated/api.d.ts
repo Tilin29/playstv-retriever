@@ -27,6 +27,7 @@ import type * as model_playstv from "../model/playstv.js";
 import type * as model_profiles from "../model/profiles.js";
 import type * as model_searches from "../model/searches.js";
 import type * as model_titleFlags from "../model/titleFlags.js";
+import type * as model_videoChecks from "../model/videoChecks.js";
 import type * as model_wayback from "../model/wayback.js";
 import type * as profiles from "../profiles.js";
 import type * as reports from "../reports.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   "model/profiles": typeof model_profiles;
   "model/searches": typeof model_searches;
   "model/titleFlags": typeof model_titleFlags;
+  "model/videoChecks": typeof model_videoChecks;
   "model/wayback": typeof model_wayback;
   profiles: typeof profiles;
   reports: typeof reports;

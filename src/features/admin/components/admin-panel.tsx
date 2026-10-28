@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useAdminSession, useSignOut } from '../hooks/use-admin-session'
 import { useBlacklistedClips, useReportedClips, useTitleFlags } from '../hooks/use-moderation'
+import { ArchiveErrors } from './archive-errors'
 import { BlacklistedClips } from './blacklisted-clips'
 import { OffensiveTitles } from './offensive-titles'
 import { ReportedClips } from './reported-clips'
@@ -53,7 +54,7 @@ function Moderation({ sessionToken }: { sessionToken: string }) {
         </Button>
       </div>
       <Tabs defaultValue="reports" className="gap-4">
-        <TabsList>
+        <TabsList className="flex-wrap group-data-horizontal/tabs:h-auto">
           <TabsTrigger value="reports">
             Reports{reported !== undefined && ` (${reported.length})`}
           </TabsTrigger>
@@ -63,6 +64,7 @@ function Moderation({ sessionToken }: { sessionToken: string }) {
           <TabsTrigger value="titles">
             Offensive titles{flaggedTitles !== undefined && ` (${flaggedTitles.length})`}
           </TabsTrigger>
+          <TabsTrigger value="archive-errors">Archive errors</TabsTrigger>
           <TabsTrigger value="searches">Searches</TabsTrigger>
         </TabsList>
         <TabsContent value="reports">
@@ -73,6 +75,10 @@ function Moderation({ sessionToken }: { sessionToken: string }) {
         </TabsContent>
         <TabsContent value="titles">
           <OffensiveTitles sessionToken={sessionToken} open={flaggedTitles} />
+        </TabsContent>
+        {/* Kept mounted, so the clips retried there stay listed until the page reloads. */}
+        <TabsContent value="archive-errors" keepMounted>
+          <ArchiveErrors sessionToken={sessionToken} />
         </TabsContent>
         <TabsContent value="searches">
           <SearchLog sessionToken={sessionToken} />
