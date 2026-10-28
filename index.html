@@ -2,12 +2,131 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PlaysTV Retriever</title>
+    <title>PlaysTV Retriever – Find and recover your lost Plays.tv clips</title>
+    <meta
+      name="description"
+      content="Plays.tv shut down in 2019 and took its clips with it. Search a Plays.tv username to find the clips the Wayback Machine saved, then watch and download them for free."
+    />
+    <meta
+      name="keywords"
+      content="Plays.tv, PlaysTV, Plays.tv clips, recover Plays.tv videos, download Plays.tv clips, Plays.tv archive, Wayback Machine, Internet Archive, game clips"
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://playstv-retriever.com/" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+    <!-- Applies the saved (or system) theme before the first paint, so the page never flashes. -->
+    <script>
+      try {
+        const saved = localStorage.getItem('theme')
+        const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
+        document.documentElement.classList.toggle('dark', dark)
+      } catch {
+        document.documentElement.classList.toggle('dark', matchMedia('(prefers-color-scheme: dark)').matches)
+      }
+    </script>
+
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Link previews (Discord, Facebook, Slack, iMessage, …) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PlaysTV Retriever" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content="https://playstv-retriever.com/" />
+    <meta property="og:title" content="PlaysTV Retriever – Find your lost Plays.tv clips" />
+    <meta
+      property="og:description"
+      content="Search a Plays.tv username to find the clips the Wayback Machine saved, then watch and download them for free."
+    />
+    <meta property="og:image" content="https://playstv-retriever.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PlaysTV Retriever – Find and recover your lost Plays.tv clips" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PlaysTV Retriever – Find your lost Plays.tv clips" />
+    <meta
+      name="twitter:description"
+      content="Search a Plays.tv username to find the clips the Wayback Machine saved, then watch and download them for free."
+    />
+    <meta name="twitter:image" content="https://playstv-retriever.com/og-image.png" />
+    <meta name="twitter:image:alt" content="PlaysTV Retriever – Find and recover your lost Plays.tv clips" />
+
+    <!-- Structured data for search engines and AI assistants -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://playstv-retriever.com/#website",
+            "url": "https://playstv-retriever.com/",
+            "name": "PlaysTV Retriever",
+            "description": "Find and recover lost Plays.tv clips from the Wayback Machine.",
+            "inLanguage": "en"
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://playstv-retriever.com/#app",
+            "url": "https://playstv-retriever.com/",
+            "name": "PlaysTV Retriever",
+            "applicationCategory": "MultimediaApplication",
+            "operatingSystem": "Any",
+            "browserRequirements": "Requires JavaScript",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "image": "https://playstv-retriever.com/og-image.png",
+            "description": "Plays.tv shut down in 2019. PlaysTV Retriever searches the Wayback Machine for a Plays.tv username's archived profile, lists its clips, and lets you watch and download the ones that were saved. It doesn't collect any private information."
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Can I still get my Plays.tv clips back?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Often, yes. Plays.tv shut down in December 2019, but the Internet Archive's Wayback Machine saved many profiles and videos. Search your Plays.tv username on PlaysTV Retriever to see which of your clips can still be recovered."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How do I download my old Plays.tv videos?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Search your username, open a recovered clip and press Download. The video opens from the Wayback Machine, where you can save it."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Why can't some clips be recovered?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The Wayback Machine didn't save every video. If it never captured a clip's full video file, that clip can't be recovered, though its thumbnail and preview may still show."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is PlaysTV Retriever affiliated with Plays.tv?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. It isn't affiliated with Plays.tv or the Internet Archive, and it only uses publicly available Wayback Machine data."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      PlaysTV Retriever finds lost Plays.tv clips saved by the Wayback Machine. Please enable
+      JavaScript to search a username.
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

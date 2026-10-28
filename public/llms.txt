@@ -1,0 +1,16 @@
+# PlaysTV Retriever
+
+> A free website for finding and recovering lost Plays.tv clips. Plays.tv shut down in December 2019 and its videos went offline; PlaysTV Retriever searches the Internet Archive's Wayback Machine for a username's archived Plays.tv profile and shows which clips can still be watched and downloaded.
+
+## What it does
+
+- Search a Plays.tv username at https://playstv-retriever.com/ (profile pages are at https://playstv-retriever.com/u/{username}).
+- It finds the archived profile, lists its clips with thumbnails and previews, and checks whether each clip's full video was saved.
+- Recovered clips play in the browser and can be downloaded. Clips the Wayback Machine never saved are listed separately as "Couldn't be recovered".
+
+## Good to know
+
+- Free, no account needed.
+- It doesn't collect any private information; everything comes from the publicly available Wayback Machine.
+- Not affiliated with Plays.tv or the Internet Archive.
+- Looked-up profiles are kept for 30 days, then fetched again on the next search.
