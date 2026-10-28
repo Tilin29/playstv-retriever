@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatRecoveredPercent } from '@/features/clips'
+import { RecoveredRing } from '@/features/clips'
 import { useRecentProfiles, type RecentProfile } from '../hooks/use-recent-profiles'
 import { formatTimeAgo } from '../lib/format'
 
@@ -48,9 +48,6 @@ function RecentProfileLink({ profile, now }: { profile: RecentProfile; now: numb
     profile.clipCount !== null
       ? `${profile.clipCount} ${profile.clipCount === 1 ? 'clip' : 'clips'}`
       : null,
-    profile.clipCount && profile.recoveredCount !== null
-      ? `${formatRecoveredPercent(profile.recoveredCount, profile.clipCount)} recovered`
-      : null,
     formatTimeAgo(profile.retrievedAt, now),
   ].filter(Boolean)
 
@@ -64,10 +61,17 @@ function RecentProfileLink({ profile, now }: { profile: RecentProfile; now: numb
         {profile.avatarUrl && <AvatarImage src={profile.avatarUrl} alt="" />}
         <AvatarFallback>{profile.username.slice(0, 2).toUpperCase()}</AvatarFallback>
       </Avatar>
-      <div className="flex min-w-0 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm font-medium">{profile.username}</span>
         <span className="text-xs text-muted-foreground">{details.join(' · ')}</span>
       </div>
+      {profile.clipCount && profile.recoveredCount !== null ? (
+        <RecoveredRing
+          recovered={profile.recoveredCount}
+          total={profile.clipCount}
+          className="size-10 text-[0.625rem]"
+        />
+      ) : null}
     </Link>
   )
 }
