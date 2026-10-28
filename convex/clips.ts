@@ -22,20 +22,33 @@ export const listByProfile = query({
   },
 })
 
-/** Every recovered clip across all profiles (or of one game), newest upload first. */
+/** `uploaded`: when it was published on Plays.tv. `added`: when it was saved here. */
+const feedSort = v.union(
+  v.literal('uploaded_desc'),
+  v.literal('uploaded_asc'),
+  v.literal('added_desc'),
+  v.literal('added_asc'),
+)
+
+/** Every recovered clip across all profiles (or of one game), newest upload first by default. */
 export const listFeed = query({
-  args: { paginationOpts: paginationOptsValidator, gameId: v.optional(v.string()) },
-  handler: async (ctx, { paginationOpts, gameId }) => {
+  args: {
+    paginationOpts: paginationOptsValidator,
+    gameId: v.optional(v.string()),
+    sort: v.optional(feedSort),
+  },
+  handler: async (ctx, { paginationOpts, gameId, sort = 'uploaded_desc' }) => {
+    const byUpload = sort.startsWith('uploaded')
+    const recovered = ctx.db.query('clips')
     const clips = gameId
-      ? ctx.db
-          .query('clips')
-          .withIndex('by_videoStatus_and_gameId_and_uploadedAt', (q) =>
-            q.eq('videoStatus', 'available').eq('gameId', gameId),
-          )
-      : ctx.db
-          .query('clips')
-          .withIndex('by_videoStatus_and_uploadedAt', (q) => q.eq('videoStatus', 'available'))
-    const result = await clips.order('desc').paginate(paginationOpts)
+      ? recovered.withIndex(
+          byUpload ? 'by_videoStatus_and_gameId_and_uploadedAt' : 'by_videoStatus_and_gameId',
+          (q) => q.eq('videoStatus', 'available').eq('gameId', gameId),
+        )
+      : recovered.withIndex(byUpload ? 'by_videoStatus_and_uploadedAt' : 'by_videoStatus', (q) =>
+          q.eq('videoStatus', 'available'),
+        )
+    const result = await clips.order(sort.endsWith('asc') ? 'asc' : 'desc').paginate(paginationOpts)
 
     const loadOwner = async (profileId: Id<'profiles'>) => {
       const profile = await ctx.db.get('profiles', profileId)

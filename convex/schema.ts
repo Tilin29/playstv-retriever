@@ -82,9 +82,12 @@ export default defineSchema({
     .index('by_profileId_and_uploadedAt', ['profileId', 'uploadedAt'])
     .index('by_profileId_and_mediaStatus', ['profileId', 'mediaStatus'])
     .index('by_profileId_and_videoStatus', ['profileId', 'videoStatus'])
-    // The feed: every recovered clip by its original upload date, optionally of one game.
+    // The feed: every recovered clip (optionally of one game) by its Plays.tv upload
+    // date, or by when it was added here (`_creationTime`, which every index ends with).
     .index('by_videoStatus_and_uploadedAt', ['videoStatus', 'uploadedAt'])
-    .index('by_videoStatus_and_gameId_and_uploadedAt', ['videoStatus', 'gameId', 'uploadedAt']),
+    .index('by_videoStatus_and_gameId_and_uploadedAt', ['videoStatus', 'gameId', 'uploadedAt'])
+    .index('by_videoStatus', ['videoStatus'])
+    .index('by_videoStatus_and_gameId', ['videoStatus', 'gameId']),
 
   // One row per game seen in a clip list, for the feed's game filter.
   games: defineTable({

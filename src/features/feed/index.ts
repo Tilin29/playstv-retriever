@@ -1,2 +1,5 @@
 export { ClipFeed } from './components/clip-feed'
+export { FeedSortSelect } from './components/feed-sort-select'
 export { GameFilter } from './components/game-filter'
+export { DEFAULT_FEED_SORT, type FeedSort } from './hooks/use-feed'
+export { isFeedSort } from './lib/sort'

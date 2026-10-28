@@ -14,22 +14,24 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import { ClipCard, ClipViewer } from '@/features/clips'
 import type { Id } from '@convex/_generated/dataModel'
-import { FEED_PAGE_SIZE, useFeed, type FeedClip } from '../hooks/use-feed'
+import { FEED_PAGE_SIZE, useFeed, type FeedClip, type FeedSort } from '../hooks/use-feed'
 
 const GRID_CLASSES = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'
 
 export function ClipFeed({
   gameId,
+  sort,
   openClipId,
   onOpenClipChange,
 }: {
   /** Only clips of this game, if set. */
   gameId: string | undefined
+  sort: FeedSort
   /** The clip shown in the viewer, if any. */
   openClipId: Id<'clips'> | undefined
   onOpenClipChange: (clipId: Id<'clips'> | undefined) => void
 }) {
-  const { results, status, loadMore } = useFeed(gameId)
+  const { results, status, loadMore } = useFeed(gameId, sort)
   const loadMoreRef = useLoadMoreOnScroll(
     status === 'CanLoadMore' ? () => loadMore(FEED_PAGE_SIZE) : null,
   )
