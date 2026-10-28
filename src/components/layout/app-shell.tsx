@@ -7,7 +7,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-svh flex-col">
       <header className="border-b">
-        <div className="mx-auto flex h-14 max-w-5xl items-center px-4">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-center px-4">
           <Link to="/">
             <img src={logo} alt={APP_NAME} className="h-7 w-auto" />
           </Link>
