@@ -4,5 +4,11 @@
   "installCommand": "npm ci",
   "buildCommand": "npx convex deploy --cmd \"npm run build\" --cmd-url-env-var-name VITE_CONVEX_URL",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "headers": [
+    {
+      "source": "/admin-manage",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    }
+  ]
 }

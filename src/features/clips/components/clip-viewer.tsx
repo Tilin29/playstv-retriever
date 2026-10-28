@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ReportClipButton } from '@/features/reports'
 import { cn } from '@/lib/utils'
 import type { Clip } from '../hooks/use-clips'
 import { formatDate } from '../lib/format'
@@ -103,6 +104,11 @@ export function ClipViewer({
         )}
         {videoUrl && (
           <DialogFooter>
+            {shownClip && (
+              <div className="sm:mr-auto">
+                <ReportClipButton clipId={shownClip._id} />
+              </div>
+            )}
             {shownClip && shownOwner && (
               <CopyClipLinkButton clipId={shownClip._id} usernameKey={shownOwner.usernameKey} />
             )}
@@ -157,7 +163,10 @@ function StepButton({
   )
 }
 
-/** ←/→ step through clips while the viewer is open, unless a slider (seek, volume) has focus. */
+/**
+ * ←/→ step through clips while the viewer is open, unless a slider (seek, volume), a
+ * text field or the report form has focus.
+ */
 function useArrowKeys(open: boolean, onPrevious: (() => void) | null, onNext: (() => void) | null) {
   const handlers = useRef({ onPrevious, onNext })
   useEffect(() => {
@@ -168,7 +177,10 @@ function useArrowKeys(open: boolean, onPrevious: (() => void) | null, onNext: ((
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
-      if (event.target instanceof HTMLElement && event.target.closest('video, input, textarea')) {
+      if (
+        event.target instanceof HTMLElement &&
+        event.target.closest('video, input, textarea, [data-report-form]')
+      ) {
         return
       }
       const step =

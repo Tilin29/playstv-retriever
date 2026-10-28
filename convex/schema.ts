@@ -28,6 +28,27 @@ export const videoStatus = v.union(
   v.literal('failed'),
 )
 
+/** The violations a clip can be reported for. */
+export const reportReason = v.union(
+  v.literal('sexual'),
+  v.literal('violence'),
+  v.literal('hate'),
+  v.literal('harassment'),
+  v.literal('personal_info'),
+  v.literal('illegal'),
+  v.literal('spam'),
+  v.literal('copyright'),
+  v.literal('other'),
+)
+
+export const reportStatus = v.union(
+  v.literal('open'),
+  // An admin looked at it and kept the clip up.
+  v.literal('dismissed'),
+  // The clip was blacklisted.
+  v.literal('actioned'),
+)
+
 export const clipFields = {
   videoId: v.string(),
   mediaId: v.string(),
@@ -98,4 +119,31 @@ export default defineSchema({
   })
     .index('by_gameId', ['gameId'])
     .index('by_recoveredCount', ['recoveredCount']),
+
+  // A visitor flagging a clip. Anonymous: nothing about the reporter is kept.
+  reports: defineTable({
+    clipId: v.id('clips'),
+    reason: reportReason,
+    details: v.optional(v.string()),
+    status: reportStatus,
+  })
+    .index('by_status', ['status'])
+    .index('by_clipId_and_status', ['clipId', 'status']),
+
+  // Clips an admin took down. They're left out of every public query.
+  blacklistedClips: defineTable({
+    clipId: v.id('clips'),
+    profileId: v.id('profiles'),
+    // The most reported violation when it was blacklisted, if it was reported.
+    reason: v.optional(reportReason),
+  })
+    .index('by_clipId', ['clipId'])
+    .index('by_profileId', ['profileId']),
+
+  // Signed-in admin panels. Only a hash of the token is stored; each row is deleted
+  // when it expires (see model/admin.ts).
+  adminSessions: defineTable({
+    tokenHash: v.string(),
+    expiresAt: v.number(),
+  }).index('by_tokenHash', ['tokenHash']),
 })

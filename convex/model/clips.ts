@@ -2,6 +2,7 @@ import { ConvexError } from 'convex/values'
 import { internal } from '../_generated/api'
 import type { Doc, Id } from '../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../_generated/server'
+import { countRecoveredClip } from './games'
 import { clipMediaUrl } from './playstv'
 import { rawCaptureUrl } from './wayback'
 
@@ -16,6 +17,57 @@ export async function retryClipVideo(ctx: MutationCtx, clipId: Id<'clips'>) {
 
   await ctx.db.patch('clips', clipId, { videoStatus: 'checking' })
   await ctx.scheduler.runAfter(0, internal.retrieval.checkOneClipVideo, { clipId })
+}
+
+/**
+ * Counts a clip's full video `delta` more (or fewer) times in its profile's and game's
+ * recovered counts. Blacklisted clips aren't counted, so the feed's game filter never
+ * offers a game whose only clips are hidden.
+ */
+export async function adjustRecoveredCounts(ctx: MutationCtx, clip: Doc<'clips'>, delta: number) {
+  const profile = await ctx.db.get('profiles', clip.profileId)
+  if (profile?.recoveredCount !== undefined) {
+    await ctx.db.patch('profiles', profile._id, { recoveredCount: profile.recoveredCount + delta })
+  }
+  if (clip.gameId) await countRecoveredClip(ctx, clip.gameId, delta)
+}
+
+/**
+ * Returns a function that loads a clip's profile for display, reading each profile once
+ * (a page often holds several clips of the same one). Null when it has no snapshot.
+ */
+export function createOwnerLoader(ctx: QueryCtx) {
+  const load = async (profileId: Id<'profiles'>) => {
+    const profile = await ctx.db.get('profiles', profileId)
+    if (!profile?.snapshotTimestamp) return null
+    return {
+      timestamp: profile.snapshotTimestamp,
+      username: profile.username,
+      usernameKey: profile.usernameKey,
+      avatarUrl: profile.avatarStorageId ? await ctx.storage.getUrl(profile.avatarStorageId) : null,
+    }
+  }
+  const owners = new Map<Id<'profiles'>, ReturnType<typeof load>>()
+  return (profileId: Id<'profiles'>) => {
+    let owner = owners.get(profileId)
+    if (!owner) {
+      owner = load(profileId)
+      owners.set(profileId, owner)
+    }
+    return owner
+  }
+}
+
+/** A clip together with its profile, or null when the profile has no snapshot. */
+export async function toOwnedClipView(
+  ctx: QueryCtx,
+  clip: Doc<'clips'>,
+  loadOwner: ReturnType<typeof createOwnerLoader>,
+) {
+  const owner = await loadOwner(clip.profileId)
+  if (!owner) return null
+  const { timestamp, ...ownerView } = owner
+  return { ...(await toClipView(ctx, clip, timestamp)), owner: ownerView }
 }
 
 /** What the app shows of a clip. `timestamp` is its profile's snapshot. */

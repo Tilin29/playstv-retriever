@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import logoDark from '@/assets/logo-dark.png'
 import logo from '@/assets/logo.png'
 import { buttonVariants } from '@/components/ui/button'
+import { AdminNavLink } from '@/features/admin'
 import { APP_NAME } from '@/hooks/use-document-title'
 import { ThemeToggle } from './theme-toggle'
 
@@ -24,6 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               Feed
             </Link>
+            <AdminNavLink />
             <ThemeToggle />
           </div>
         </div>

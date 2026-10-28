@@ -10,12 +10,18 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminManageRouteImport } from './routes/admin-manage'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminManageRoute = AdminManageRouteImport.update({
+  id: '/admin-manage',
+  path: '/admin-manage',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FeedRoute = FeedRouteImport.update({
@@ -31,30 +37,34 @@ const UUsernameRoute = UUsernameRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin-manage': typeof AdminManageRoute
   '/feed': typeof FeedRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin-manage': typeof AdminManageRoute
   '/feed': typeof FeedRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin-manage': typeof AdminManageRoute
   '/feed': typeof FeedRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/feed' | '/u/$username'
+  fullPaths: '/' | '/admin-manage' | '/feed' | '/u/$username'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/feed' | '/u/$username'
-  id: '__root__' | '/' | '/feed' | '/u/$username'
+  to: '/' | '/admin-manage' | '/feed' | '/u/$username'
+  id: '__root__' | '/' | '/admin-manage' | '/feed' | '/u/$username'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminManageRoute: typeof AdminManageRoute
   FeedRoute: typeof FeedRoute
   UUsernameRoute: typeof UUsernameRoute
 }
@@ -66,6 +76,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-manage': {
+      id: '/admin-manage'
+      path: '/admin-manage'
+      fullPath: '/admin-manage'
+      preLoaderRoute: typeof AdminManageRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/feed': {
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminManageRoute: AdminManageRoute,
   FeedRoute: FeedRoute,
   UUsernameRoute: UUsernameRoute,
 }

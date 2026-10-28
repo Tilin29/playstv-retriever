@@ -1,8 +1,8 @@
 import { paginationOptsValidator } from 'convex/server'
 import { v } from 'convex/values'
-import type { Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
-import { retryClipVideo, toClipView } from './model/clips'
+import { createOwnerLoader, retryClipVideo, toClipView, toOwnedClipView } from './model/clips'
+import { blacklistedClipIds, isBlacklisted } from './model/moderation'
 
 const MAX_CLIPS = 500
 
@@ -18,7 +18,12 @@ export const listByProfile = query({
       .withIndex('by_profileId_and_uploadedAt', (q) => q.eq('profileId', profileId))
       .order('desc')
       .take(MAX_CLIPS)
-    return await Promise.all(clips.map((clip) => toClipView(ctx, clip, timestamp)))
+    const blacklisted = await blacklistedClipIds(ctx, profileId, MAX_CLIPS)
+    return await Promise.all(
+      clips
+        .filter((clip) => !blacklisted.has(clip._id))
+        .map((clip) => toClipView(ctx, clip, timestamp)),
+    )
   },
 })
 
@@ -59,27 +64,12 @@ export const listFeed = query({
         )
     const result = await clips.order(sort.endsWith('asc') ? 'asc' : 'desc').paginate(paginationOpts)
 
-    const loadOwner = async (profileId: Id<'profiles'>) => {
-      const profile = await ctx.db.get('profiles', profileId)
-      if (!profile?.snapshotTimestamp) return null
-      return {
-        timestamp: profile.snapshotTimestamp,
-        username: profile.username,
-        usernameKey: profile.usernameKey,
-        avatarUrl: profile.avatarStorageId ? await ctx.storage.getUrl(profile.avatarStorageId) : null,
-      }
-    }
-    // A page often holds several clips of the same profile, so each is loaded once.
-    const owners = new Map<Id<'profiles'>, ReturnType<typeof loadOwner>>()
-
+    const loadOwner = createOwnerLoader(ctx)
     const page = await Promise.all(
-      result.page.map(async (clip) => {
-        if (!owners.has(clip.profileId)) owners.set(clip.profileId, loadOwner(clip.profileId))
-        const owner = await owners.get(clip.profileId)
-        if (!owner) return null
-        const { timestamp, ...ownerView } = owner
-        return { ...(await toClipView(ctx, clip, timestamp)), owner: ownerView }
-      }),
+      result.page.map(async (clip) =>
+        // Blacklisted clips are rare, so they're dropped from the page rather than indexed out.
+        (await isBlacklisted(ctx, clip._id)) ? null : await toOwnedClipView(ctx, clip, loadOwner),
+      ),
     )
     return { ...result, page: page.filter((clip) => clip !== null) }
   },

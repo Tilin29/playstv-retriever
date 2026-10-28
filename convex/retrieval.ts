@@ -8,7 +8,9 @@ import {
   type ActionCtx,
 } from './_generated/server'
 import { archiveGate } from './model/archive'
-import { addGames, countRecoveredClip } from './model/games'
+import { adjustRecoveredCounts } from './model/clips'
+import { addGames } from './model/games'
+import { isBlacklisted } from './model/moderation'
 import {
   cdnHostVariants,
   clipMediaUrl,
@@ -320,8 +322,9 @@ export const saveClipMedia = internalMutation({
     mediaStatus: v.union(v.literal('stored'), v.literal('missing'), v.literal('failed')),
   },
   handler: async (ctx, { clipId, ...media }) => {
-    // The profile may have been cleaned up while the download was running.
-    if (!(await ctx.db.get('clips', clipId))) {
+    // The profile may have been cleaned up, or the clip blacklisted, while the
+    // download was running.
+    if (!(await ctx.db.get('clips', clipId)) || (await isBlacklisted(ctx, clipId))) {
       await deleteFiles(ctx, [media.previewStorageId, media.thumbnailStorageId])
       return null
     }
@@ -444,12 +447,12 @@ export const saveClipVideo = internalMutation({
     if (!clip) return null
     await ctx.db.patch('clips', clipId, video)
 
-    if (video.videoStatus === 'available' && clip.videoStatus !== 'available') {
-      const profile = await ctx.db.get('profiles', clip.profileId)
-      if (profile?.recoveredCount !== undefined) {
-        await ctx.db.patch('profiles', profile._id, { recoveredCount: profile.recoveredCount + 1 })
-      }
-      if (clip.gameId) await countRecoveredClip(ctx, clip.gameId)
+    if (
+      video.videoStatus === 'available' &&
+      clip.videoStatus !== 'available' &&
+      !(await isBlacklisted(ctx, clipId))
+    ) {
+      await adjustRecoveredCounts(ctx, clip, 1)
     }
     return null
   },
