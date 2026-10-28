@@ -62,14 +62,25 @@ export function ClipGrid({
   const isLost = (clip: Clip) => isUnrecoverable(clip) && !justLostIds.has(clip._id)
   const recoverable = clips.filter((clip) => !isLost(clip))
   const unrecoverable = clips.filter(isLost)
-  const openClip = clips.find((clip) => clip._id === openClipId && isWatchable(clip)) ?? null
+  // The viewer steps through the watchable clips in the order they're shown.
+  const watchable = recoverable.filter(isWatchable)
+  const openIndex = watchable.findIndex((clip) => clip._id === openClipId)
+  const openClip = watchable[openIndex] ?? null
+  const previous = openIndex > 0 ? watchable[openIndex - 1] : null
+  const next = openIndex >= 0 ? (watchable[openIndex + 1] ?? null) : null
   const sectionProps = { justLostIds, onOpen: (clip: Clip) => onOpenClipChange(clip._id) }
 
   return (
     <div className="flex flex-col gap-8">
       <ClipSection title="Recoverable" clips={recoverable} {...sectionProps} />
       <ClipSection title="Couldn't be recovered" clips={unrecoverable} {...sectionProps} />
-      <ClipViewer clip={openClip} owner={owner} onClose={() => onOpenClipChange(undefined)} />
+      <ClipViewer
+        clip={openClip}
+        owner={owner}
+        onClose={() => onOpenClipChange(undefined)}
+        onPrevious={previous && (() => onOpenClipChange(previous._id))}
+        onNext={next && (() => onOpenClipChange(next._id))}
+      />
     </div>
   )
 }

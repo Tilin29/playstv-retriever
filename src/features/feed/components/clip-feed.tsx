@@ -17,6 +17,7 @@ import type { Id } from '@convex/_generated/dataModel'
 import { FEED_PAGE_SIZE, useFeed, type FeedClip, type FeedSort } from '../hooks/use-feed'
 
 const GRID_CLASSES = 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'
+const VIEWER_PRELOAD_CLIPS = 3
 
 export function ClipFeed({
   gameId,
@@ -35,6 +36,13 @@ export function ClipFeed({
   const loadMoreRef = useLoadMoreOnScroll(
     status === 'CanLoadMore' ? () => loadMore(FEED_PAGE_SIZE) : null,
   )
+
+  const openIndex = results.findIndex((clip) => clip._id === openClipId)
+  // Stepping through clips in the viewer loads the next page before it runs out.
+  const nearEnd = openIndex >= 0 && openIndex >= results.length - VIEWER_PRELOAD_CLIPS
+  useEffect(() => {
+    if (nearEnd && status === 'CanLoadMore') loadMore(FEED_PAGE_SIZE)
+  }, [nearEnd, status, loadMore])
 
   if (status === 'LoadingFirstPage') {
     return (
@@ -62,7 +70,9 @@ export function ClipFeed({
     )
   }
 
-  const openClip = results.find((clip) => clip._id === openClipId) ?? null
+  const openClip = results[openIndex] ?? null
+  const previous = openIndex > 0 ? results[openIndex - 1] : null
+  const next = openIndex >= 0 ? (results[openIndex + 1] ?? null) : null
 
   return (
     <div className="flex flex-col gap-6">
@@ -86,6 +96,8 @@ export function ClipFeed({
         clip={openClip}
         owner={openClip?.owner ?? null}
         onClose={() => onOpenClipChange(undefined)}
+        onPrevious={previous && (() => onOpenClipChange(previous._id))}
+        onNext={next && (() => onOpenClipChange(next._id))}
       />
     </div>
   )

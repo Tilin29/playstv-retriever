@@ -63,7 +63,12 @@ function FeedPage() {
         sort={sort}
         openClipId={clip}
         onOpenClipChange={(clipId) =>
-          navigate({ search: (prev) => ({ ...prev, clip: clipId }), resetScroll: false })
+          navigate({
+            search: (prev) => ({ ...prev, clip: clipId }),
+            resetScroll: false,
+            // Stepping between clips replaces the entry, so Back closes the viewer.
+            replace: clip !== undefined && clipId !== undefined,
+          })
         }
       />
     </section>

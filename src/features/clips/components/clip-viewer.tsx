@@ -1,6 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
-import { CheckIcon, DownloadIcon, LinkIcon } from 'lucide-react'
+import {
+  CheckIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DownloadIcon,
+  LinkIcon,
+} from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
@@ -11,8 +17,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { cn } from '@/lib/utils'
 import type { Clip } from '../hooks/use-clips'
 import { formatDate } from '../lib/format'
+import { VideoPlayer } from './video-player'
 
 /** The profile a clip belongs to. */
 export type ClipOwner = {
@@ -23,16 +31,27 @@ export type ClipOwner = {
 
 const COPIED_NOTICE_MS = 2000
 
-/** Plays a recovered clip straight from the Wayback Machine; the video itself isn't stored. */
+/**
+ * Plays a recovered clip straight from the Wayback Machine; the video itself isn't
+ * stored. Arrows (and ←/→) step to the neighbouring clips when there are any.
+ */
 export function ClipViewer({
   clip,
   owner,
   onClose,
+  onPrevious,
+  onNext,
 }: {
   clip: Clip | null
   owner: ClipOwner | null
   onClose: () => void
+  /** Opens the clip before this one; null when this is the first. */
+  onPrevious: (() => void) | null
+  /** Opens the clip after this one; null when this is the last. */
+  onNext: (() => void) | null
 }) {
+  useArrowKeys(clip !== null, onPrevious, onNext)
+
   // Keep showing the last clip while the dialog animates closed.
   const [shown, setShown] = useState({ clip, owner })
   if (clip && clip !== shown.clip) setShown({ clip, owner })
@@ -50,6 +69,13 @@ export function ClipViewer({
   return (
     <Dialog open={clip !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-4xl">
+        {/* Beside the popup on wide screens; over the video's edges where there's no room. */}
+        <StepButton label="Previous clip" onClick={onPrevious} className="left-6 lg:-left-14">
+          <ChevronLeftIcon className="size-6" />
+        </StepButton>
+        <StepButton label="Next clip" onClick={onNext} className="right-6 lg:-right-14">
+          <ChevronRightIcon className="size-6" />
+        </StepButton>
         <DialogHeader className="pr-8">
           {shownOwner && (
             <Link
@@ -68,14 +94,11 @@ export function ClipViewer({
           {details.length > 0 && <DialogDescription>{details.join(' · ')}</DialogDescription>}
         </DialogHeader>
         {videoUrl && (
-          <video
+          <VideoPlayer
             key={videoUrl}
             src={videoUrl}
             poster={shownClip?.thumbnailUrl ?? undefined}
-            controls
-            autoPlay
-            playsInline
-            className="aspect-video w-full rounded-lg bg-black"
+            onNext={onNext}
           />
         )}
         {videoUrl && (
@@ -100,6 +123,67 @@ export function ClipViewer({
       </DialogContent>
     </Dialog>
   )
+}
+
+function StepButton({
+  label,
+  onClick,
+  className,
+  children,
+}: {
+  label: string
+  onClick: (() => void) | null
+  className: string
+  children: React.ReactNode
+}) {
+  return (
+    <Button
+      variant="outline"
+      aria-label={label}
+      title={label}
+      disabled={!onClick}
+      onClick={onClick ?? undefined}
+      className={cn(
+        // Solid and large so they stand out over the dimmed page and the video; slightly
+        // faded at rest, full strength on hover or focus.
+        'absolute top-1/2 z-10 size-12 -translate-y-1/2 rounded-full bg-background/90 opacity-80 shadow-lg backdrop-blur-sm hover:opacity-100 focus-visible:opacity-100 dark:bg-background/90',
+        // Over the video a disabled arrow is just in the way; beside it, it shows the end.
+        'disabled:opacity-0 lg:disabled:opacity-25',
+        className,
+      )}
+    >
+      {children}
+    </Button>
+  )
+}
+
+/** ←/→ step through clips while the viewer is open, unless a slider (seek, volume) has focus. */
+function useArrowKeys(open: boolean, onPrevious: (() => void) | null, onNext: (() => void) | null) {
+  const handlers = useRef({ onPrevious, onNext })
+  useEffect(() => {
+    handlers.current = { onPrevious, onNext }
+  })
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+      if (event.target instanceof HTMLElement && event.target.closest('video, input, textarea')) {
+        return
+      }
+      const step =
+        event.key === 'ArrowLeft'
+          ? handlers.current.onPrevious
+          : event.key === 'ArrowRight'
+            ? handlers.current.onNext
+            : null
+      if (!step) return
+      event.preventDefault()
+      step()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open])
 }
 
 /** Copies a link that opens this clip on its owner's profile. */
