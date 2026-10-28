@@ -41,8 +41,6 @@ const VIDEO_CHECK_CONCURRENCY = 4
 // Each phase hands over to a fresh action before running into the action time limit.
 const PHASE_TIME_BUDGET_MS = 4 * 60 * 1000
 const PHASE_BATCH_SIZE = 20
-// Video checks the Archive errored on get another pass after these delays.
-const VIDEO_CHECK_RETRY_DELAYS_MS = [30_000, 120_000]
 // Video probes ask for the capture closest to Plays.tv's shutdown.
 const PLAYSTV_SHUTDOWN_TIMESTAMP = '20191215'
 
@@ -329,9 +327,10 @@ export const listClipsNeedingVideoCheck = internalQuery({
   },
 })
 
+/** Checks each clip once; ones the Archive errored on are retried on a later visit. */
 export const checkProfileVideos = internalAction({
-  args: { profileId: v.id('profiles'), attempt: v.optional(v.number()) },
-  handler: async (ctx, { profileId, attempt = 0 }) => {
+  args: { profileId: v.id('profiles') },
+  handler: async (ctx, { profileId }) => {
     const gate = archiveGate(ctx)
     const deadline = Date.now() + PHASE_TIME_BUDGET_MS
     for (;;) {
@@ -346,24 +345,8 @@ export const checkProfileVideos = internalAction({
       )
 
       if (Date.now() > deadline) {
-        await ctx.scheduler.runAfter(0, internal.retrieval.checkProfileVideos, {
-          profileId,
-          attempt,
-        })
+        await ctx.scheduler.runAfter(0, internal.retrieval.checkProfileVideos, { profileId })
         return null
-      }
-    }
-
-    const retryDelay = VIDEO_CHECK_RETRY_DELAYS_MS[attempt]
-    if (retryDelay !== undefined) {
-      const requeued: number = await ctx.runMutation(internal.retrieval.requeueFailedVideoChecks, {
-        profileId,
-      })
-      if (requeued > 0) {
-        await ctx.scheduler.runAfter(retryDelay, internal.retrieval.checkProfileVideos, {
-          profileId,
-          attempt: attempt + 1,
-        })
       }
     }
     return null
@@ -421,24 +404,5 @@ export const saveClipVideo = internalMutation({
   handler: async (ctx, { clipId, ...video }) => {
     if (await ctx.db.get('clips', clipId)) await ctx.db.patch('clips', clipId, video)
     return null
-  },
-})
-
-/** Puts a profile's failed and to-be-rechecked video checks back in the queue; returns how many. */
-export const requeueFailedVideoChecks = internalMutation({
-  args: { profileId: v.id('profiles') },
-  handler: async (ctx, { profileId }) => {
-    let requeued = 0
-    for (const status of ['failed', 'rechecking'] as const) {
-      const clips = await ctx.db
-        .query('clips')
-        .withIndex('by_profileId_and_videoStatus', (q) =>
-          q.eq('profileId', profileId).eq('videoStatus', status),
-        )
-        .take(500)
-      for (const clip of clips) await ctx.db.patch('clips', clip._id, { videoStatus: 'checking' })
-      requeued += clips.length
-    }
-    return requeued
   },
 })
