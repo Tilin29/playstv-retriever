@@ -14,6 +14,21 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
+      <footer className="border-t">
+        <p className="mx-auto max-w-5xl px-4 py-6 text-center text-xs text-muted-foreground">
+          {APP_NAME} doesn't collect any private information. Everything it shows comes from
+          the publicly available{' '}
+          <a
+            href="https://web.archive.org"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-3 hover:text-foreground"
+          >
+            Wayback Machine
+          </a>
+          .
+        </p>
+      </footer>
     </div>
   )
 }
