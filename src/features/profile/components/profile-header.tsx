@@ -53,7 +53,7 @@ export function ProfileHeader({ profile, clips }: { profile: Profile; clips: Cli
         </p>
       </div>
       {total > 0 && (
-        <RecoveredRing recovered={recovered} total={total} showCaption className="size-20 text-base" />
+        <RecoveredRing recovered={recovered} total={total} className="size-20 text-base" />
       )}
       {profile.snapshotViewUrl && (
         <a

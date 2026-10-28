@@ -35,7 +35,7 @@ export function RecentProfiles() {
             ))
           : Array.from({ length: 4 }, (_, index) => (
               <li key={index}>
-                <Skeleton className="h-14 rounded-lg" />
+                <Skeleton className="h-19.5 rounded-lg" />
               </li>
             ))}
       </ul>
@@ -69,7 +69,7 @@ function RecentProfileLink({ profile, now }: { profile: RecentProfile; now: numb
         <RecoveredRing
           recovered={profile.recoveredCount}
           total={profile.clipCount}
-          className="size-10 text-[0.625rem]"
+          className="size-14 text-sm"
         />
       ) : null}
     </Link>

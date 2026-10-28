@@ -1,20 +1,25 @@
 import { cn } from '@/lib/utils'
 import { formatRecoveredPercent } from '../lib/format'
 
+/** Below 30% recovered is bad, from 60% on is good. */
+function ringColor(share: number) {
+  if (share >= 0.6) return 'stroke-success'
+  if (share >= 0.3) return 'stroke-warning'
+  return 'stroke-destructive'
+}
+
 /**
  * A ring that fills up with the share of clips whose full video was recovered,
- * with the percentage in the middle.
+ * with the percentage and "recovered" in the middle. The text scales with the
+ * ring's font size.
  */
 export function RecoveredRing({
   recovered,
   total,
-  showCaption = false,
   className,
 }: {
   recovered: number
   total: number
-  /** Adds "recovered" under the percentage; only fits on larger rings. */
-  showCaption?: boolean
   className?: string
 }) {
   const share = total > 0 ? Math.min(recovered / total, 1) : 0
@@ -42,15 +47,16 @@ export function RecoveredRing({
             pathLength={100}
             strokeDasharray={100}
             strokeDashoffset={100 - share * 100}
-            className="stroke-primary transition-[stroke-dashoffset] duration-500"
+            className={cn(
+              'transition-[stroke-dashoffset,stroke] duration-500',
+              ringColor(share),
+            )}
           />
         )}
       </svg>
       <div className="relative flex flex-col items-center leading-none">
         <span className="font-semibold tabular-nums">{percent}</span>
-        {showCaption && (
-          <span className="mt-0.5 text-[0.625rem] text-muted-foreground">recovered</span>
-        )}
+        <span className="mt-[0.2em] text-[0.625em] text-muted-foreground">recovered</span>
       </div>
     </div>
   )
