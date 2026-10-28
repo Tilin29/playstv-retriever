@@ -5,7 +5,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/ca
 import { cn } from '@/lib/utils'
 import type { Clip } from '../hooks/use-clips'
 import { formatDate, formatDuration } from '../lib/format'
-import { isChecking, isUnrecoverable } from '../lib/status'
+import { isChecking, isUnrecoverable, isWatchable } from '../lib/status'
 
 const VIDEO_STATUS_NOTES: Partial<Record<Clip['videoStatus'], string>> = {
   checking: 'Checking the archive…',
@@ -14,7 +14,7 @@ const VIDEO_STATUS_NOTES: Partial<Record<Clip['videoStatus'], string>> = {
   failed: "The archive didn't respond – retrying on your next visit",
 }
 
-export function ClipCard({ clip }: { clip: Clip }) {
+export function ClipCard({ clip, onOpen }: { clip: Clip; onOpen: () => void }) {
   const [previewing, setPreviewing] = useState(false)
   // Media that failed to load (e.g. the Archive timing out). A stored copy has a
   // different URL, so it is tried again once it arrives.
@@ -22,7 +22,7 @@ export function ClipCard({ clip }: { clip: Clip }) {
   const thumbnailUrl =
     clip.thumbnailUrl && !brokenUrls.has(clip.thumbnailUrl) ? clip.thumbnailUrl : null
   const previewUrl = clip.previewUrl && !brokenUrls.has(clip.previewUrl) ? clip.previewUrl : null
-  const videoUrl = clip.videoStatus === 'available' ? clip.videoUrl : null
+  const videoUrl = isWatchable(clip) ? clip.videoUrl : null
   const unrecoverable = isUnrecoverable(clip)
   const checking = isChecking(clip)
 
@@ -102,17 +102,19 @@ export function ClipCard({ clip }: { clip: Clip }) {
   }
 
   return (
-    <a
-      href={videoUrl}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`Watch "${clip.title}" (archived video)`}
-      className="group block rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+    <button
+      type="button"
+      aria-label={`Watch "${clip.title}"`}
+      className="group block w-full cursor-pointer rounded-xl text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      onClick={() => {
+        setPreviewing(false)
+        onOpen()
+      }}
       onFocus={() => setPreviewing(true)}
       onBlur={() => setPreviewing(false)}
       {...previewHandlers}
     >
       {card}
-    </a>
+    </button>
   )
 }

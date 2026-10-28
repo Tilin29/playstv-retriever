@@ -11,10 +11,16 @@ import {
 import { Spinner } from '@/components/ui/spinner'
 import { useDocumentTitle } from '@/hooks/use-document-title'
 import { ClipGrid, useClips } from '@/features/clips'
+import type { Id } from '@convex/_generated/dataModel'
 import { useProfile, type Profile } from '../hooks/use-profile'
 import { ProfileHeader } from './profile-header'
 
-export function ProfileView({ username }: { username: string }) {
+type ClipViewerProps = {
+  openClipId: Id<'clips'> | undefined
+  onOpenClipChange: (clipId: Id<'clips'> | undefined) => void
+}
+
+export function ProfileView({ username, ...viewerProps }: { username: string } & ClipViewerProps) {
   const { profile, lookupError, retry } = useProfile(username)
   useDocumentTitle(
     !profile || profile.status === 'searching'
@@ -75,15 +81,15 @@ export function ProfileView({ username }: { username: string }) {
     )
   }
 
-  return <ReadyProfile profile={profile} />
+  return <ReadyProfile profile={profile} {...viewerProps} />
 }
 
-function ReadyProfile({ profile }: { profile: Profile }) {
+function ReadyProfile({ profile, ...viewerProps }: { profile: Profile } & ClipViewerProps) {
   const clips = useClips(profile._id)
   return (
     <div className="flex flex-col gap-6">
       <ProfileHeader profile={profile} clips={clips} />
-      <ClipGrid clips={clips} />
+      <ClipGrid clips={clips} {...viewerProps} />
     </div>
   )
 }
