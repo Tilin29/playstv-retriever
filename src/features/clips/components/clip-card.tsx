@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { ImageOffIcon } from 'lucide-react'
+import { ClockIcon, ImageOffIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import type { Clip } from '../hooks/use-clips'
 import { formatDate, formatDuration } from '../lib/format'
+import { isChecking, isUnrecoverable } from '../lib/status'
 
 const VIDEO_STATUS_NOTES: Partial<Record<Clip['videoStatus'], string>> = {
   checking: 'Checking the archive…',
@@ -22,7 +23,8 @@ export function ClipCard({ clip }: { clip: Clip }) {
     clip.thumbnailUrl && !brokenUrls.has(clip.thumbnailUrl) ? clip.thumbnailUrl : null
   const previewUrl = clip.previewUrl && !brokenUrls.has(clip.previewUrl) ? clip.previewUrl : null
   const videoUrl = clip.videoStatus === 'available' ? clip.videoUrl : null
-  const unrecoverable = clip.videoStatus === 'unavailable' || clip.videoStatus === 'failed'
+  const unrecoverable = isUnrecoverable(clip)
+  const checking = isChecking(clip)
 
   const details = [
     clip.uploadedAt !== null ? formatDate(clip.uploadedAt) : null,
@@ -35,7 +37,8 @@ export function ClipCard({ clip }: { clip: Clip }) {
       className={cn(
         'h-full pt-0 transition',
         videoUrl && 'group-hover:ring-foreground/30',
-        unrecoverable && 'opacity-60 grayscale',
+        // The preview of a lost clip plays in full colour so it can still be recognised.
+        unrecoverable && !(previewing && previewUrl) && 'opacity-60 grayscale',
       )}
     >
       <div className="relative aspect-video bg-muted">
@@ -61,6 +64,16 @@ export function ClipCard({ clip }: { clip: Clip }) {
             onError={() => setBrokenUrls((urls) => new Set(urls).add(previewUrl))}
             className="absolute inset-0 size-full object-cover"
           />
+        )}
+        {checking && (
+          <Badge
+            variant="secondary"
+            title="Checking if the full video can be recovered"
+            className="absolute top-2 left-2"
+          >
+            <ClockIcon className="animate-pulse" />
+            Checking
+          </Badge>
         )}
         {clip.durationSeconds !== null && (
           <Badge variant="secondary" className="absolute right-2 bottom-2 tabular-nums">
