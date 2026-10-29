@@ -5,6 +5,7 @@ import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import type { FeedFilters as Filters } from '../hooks/use-feed'
+import { isDateParam } from '../lib/dates'
 import { GameFilter } from './game-filter'
 import { UserFilter } from './user-filter'
 
@@ -42,22 +43,20 @@ export function FeedFilters({
         </Field>
         <Field>
           <FieldLabel htmlFor="feed-from">Uploaded from</FieldLabel>
-          <Input
+          <DateFilter
             id="feed-from"
-            type="date"
-            value={filters.from ?? ''}
+            value={filters.from}
             max={filters.to}
-            onChange={(event) => onFiltersChange({ from: event.target.value || undefined })}
+            onChange={(from) => onFiltersChange({ from })}
           />
         </Field>
         <Field>
           <FieldLabel htmlFor="feed-to">Uploaded to</FieldLabel>
-          <Input
+          <DateFilter
             id="feed-to"
-            type="date"
-            value={filters.to ?? ''}
+            value={filters.to}
             min={filters.from}
-            onChange={(event) => onFiltersChange({ to: event.target.value || undefined })}
+            onChange={(to) => onFiltersChange({ to })}
           />
         </Field>
       </div>
@@ -81,6 +80,45 @@ export function FeedFilters({
         </Button>
       )}
     </div>
+  )
+}
+
+/**
+ * A date input that only applies whole dates. While the year is being typed the browser
+ * reports partial years like 0020, and sending those through the URL makes the input
+ * reset mid-typing.
+ */
+function DateFilter({
+  value,
+  onChange,
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, 'type' | 'value' | 'onChange'> & {
+  value: string | undefined
+  onChange: (value: string | undefined) => void
+}) {
+  const [text, setText] = useState(value ?? '')
+  // Take on outside changes (e.g. "Clear filters" or Back) without fighting the typing.
+  const [lastValue, setLastValue] = useState(value)
+  if (value !== lastValue) {
+    setLastValue(value)
+    setText(value ?? '')
+  }
+
+  return (
+    <Input
+      {...props}
+      type="date"
+      value={text}
+      onChange={(event) => {
+        const next = event.target.value
+        setText(next)
+        if (!next) {
+          if (value !== undefined) onChange(undefined)
+        } else if (isDateParam(next) && Number(next.slice(0, 4)) >= 1000 && next !== value) {
+          onChange(next)
+        }
+      }}
+    />
   )
 }
 
