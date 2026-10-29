@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import {
   AlertCircleIcon,
   ExternalLinkIcon,
@@ -31,12 +31,16 @@ const SEEK_STEP_SECONDS = 5
 export function VideoPlayer({
   src,
   poster,
+  fullscreenTarget,
   onNext,
   shuffle,
   onShuffleChange,
 }: {
   src: string
   poster: string | undefined
+  /** What goes fullscreen: an element around the player that outlives it, so the next
+   * clip plays on in fullscreen. */
+  fullscreenTarget: RefObject<HTMLElement | null>
   /** Plays the next clip; null when there's none. */
   onNext: (() => void) | null
   /** Shows the shuffle toggle when given. */
@@ -95,10 +99,15 @@ export function VideoPlayer({
   }, [countdown])
 
   useEffect(() => {
-    const onChange = () => setFullscreen(document.fullscreenElement === containerRef.current)
+    const onChange = () => {
+      const element = document.fullscreenElement
+      setFullscreen(element !== null && element === fullscreenTarget.current)
+    }
+    // The clip before may have left it fullscreen.
+    onChange()
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
-  }, [])
+  }, [fullscreenTarget])
 
   useEffect(() => () => clearTimeout(idleTimer.current), [])
 
@@ -115,7 +124,7 @@ export function VideoPlayer({
   }
   const toggleFullscreen = () => {
     if (document.fullscreenElement) void document.exitFullscreen()
-    else void containerRef.current?.requestFullscreen().catch(() => {})
+    else void fullscreenTarget.current?.requestFullscreen().catch(() => {})
   }
   const toggleMute = () => updateSettings({ muted: !settings.muted || settings.volume === 0 })
 

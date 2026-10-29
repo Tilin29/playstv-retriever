@@ -60,6 +60,7 @@ export function ClipViewer({
   onShuffleChange?: (shuffle: boolean) => void
 }) {
   useArrowKeys(clip !== null, onPrevious, onNext)
+  const playerFrameRef = useRef<HTMLDivElement>(null)
 
   // Keep showing the last clip while the dialog animates closed.
   const [shown, setShown] = useState({ clip, owner })
@@ -109,14 +110,18 @@ export function ClipViewer({
           {details.length > 0 && <DialogDescription>{details.join(' · ')}</DialogDescription>}
         </DialogHeader>
         {videoUrl && (
-          <VideoPlayer
-            key={videoUrl}
-            src={videoUrl}
-            poster={shownClip?.thumbnailUrl ?? undefined}
-            onNext={onNext}
-            shuffle={shuffle}
-            onShuffleChange={onShuffleChange}
-          />
+          // Stays while clips change, so fullscreen carries on to the next one.
+          <div ref={playerFrameRef}>
+            <VideoPlayer
+              key={videoUrl}
+              src={videoUrl}
+              poster={shownClip?.thumbnailUrl ?? undefined}
+              fullscreenTarget={playerFrameRef}
+              onNext={onNext}
+              shuffle={shuffle}
+              onShuffleChange={onShuffleChange}
+            />
+          </div>
         )}
         {videoUrl && (
           <DialogFooter>
