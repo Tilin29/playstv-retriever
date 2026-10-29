@@ -155,6 +155,9 @@ export default defineSchema({
     videoQuality: v.optional(v.number()),
     // An admin hid the title for breaking the rules; only admins still see it.
     titleHidden: v.optional(v.boolean()),
+    // Random in [0, 1), for shuffling the feed (see model/feed.ts). Missing on clips
+    // stored before shuffling, until `migrations:backfillShuffleKeys` runs.
+    shuffleKey: v.optional(v.number()),
   })
     .index('by_profileId_and_uploadedAt', ['profileId', 'uploadedAt'])
     .index('by_profileId_and_mediaStatus', ['profileId', 'mediaStatus'])
@@ -165,6 +168,9 @@ export default defineSchema({
     .index('by_videoStatus_and_gameId_and_uploadedAt', ['videoStatus', 'gameId', 'uploadedAt'])
     .index('by_videoStatus', ['videoStatus'])
     .index('by_videoStatus_and_gameId', ['videoStatus', 'gameId'])
+    // Shuffling the feed: a random point in this order, then the clips after it.
+    .index('by_videoStatus_and_shuffleKey', ['videoStatus', 'shuffleKey'])
+    .index('by_videoStatus_and_gameId_and_shuffleKey', ['videoStatus', 'gameId', 'shuffleKey'])
     // Finds the clip a pasted plays.tv/video/<videoId> link points to.
     .index('by_videoId', ['videoId'])
     // The feed's title search, narrowed by the feed's other filters.

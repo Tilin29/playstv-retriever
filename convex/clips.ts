@@ -3,7 +3,7 @@ import { v } from 'convex/values'
 import type { Id } from './_generated/dataModel'
 import { mutation, query } from './_generated/server'
 import { createOwnerLoader, retryClipVideo, toClipView, toOwnedClipView } from './model/clips'
-import { listFeedPage } from './model/feed'
+import { listFeedPage, pickRandomFeedClip } from './model/feed'
 import { blacklistedClipIds, isBlacklisted } from './model/moderation'
 import { getProfileByUsername, isProfileHidden } from './model/profiles'
 
@@ -96,5 +96,39 @@ export const listFeed = query({
     }
     const search = filters.search?.trim() || undefined
     return await listFeedPage(ctx, { ...filters, search, profileId, sort }, paginationOpts)
+  },
+})
+
+// Only the most recently played clips are skipped; older ones may come round again.
+const MAX_EXCLUDED = 200
+
+/**
+ * A random recovered clip matching the feed's filters (as in `listFeed`), for shuffling.
+ * `seed` (0 to 1) picks it; `exclude` lists the clips already played. Null when none is
+ * left.
+ */
+export const randomFeedClip = query({
+  args: {
+    seed: v.number(),
+    exclude: v.array(v.id('clips')),
+    search: v.optional(v.string()),
+    username: v.optional(v.string()),
+    gameId: v.optional(v.string()),
+    from: v.optional(v.number()),
+    to: v.optional(v.number()),
+  },
+  handler: async (ctx, { seed, exclude, username, ...filters }) => {
+    let profileId: Id<'profiles'> | undefined
+    if (username) {
+      const profile = await getProfileByUsername(ctx, username)
+      if (!profile || isProfileHidden(profile)) return null
+      profileId = profile._id
+    }
+    const search = filters.search?.trim() || undefined
+    return await pickRandomFeedClip(
+      ctx,
+      { ...filters, search, profileId },
+      { seed: Math.min(Math.max(seed, 0), 1), exclude: exclude.slice(-MAX_EXCLUDED) },
+    )
   },
 })

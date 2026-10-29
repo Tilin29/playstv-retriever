@@ -7,6 +7,7 @@ import {
   PauseIcon,
   PlayIcon,
   RotateCwIcon,
+  ShuffleIcon,
   SkipForwardIcon,
   Volume2Icon,
   VolumeXIcon,
@@ -17,7 +18,7 @@ import { cn } from '@/lib/utils'
 import { formatDuration } from '../lib/format'
 import { readPlayerSettings, writePlayerSettings, type PlayerSettings } from '../lib/player-settings'
 
-const NEXT_CLIP_COUNTDOWN_SECONDS = 5
+const NEXT_CLIP_COUNTDOWN_SECONDS = 3
 const CONTROLS_HIDE_DELAY_MS = 2500
 const SEEK_STEP_SECONDS = 5
 
@@ -31,11 +32,16 @@ export function VideoPlayer({
   src,
   poster,
   onNext,
+  shuffle,
+  onShuffleChange,
 }: {
   src: string
   poster: string | undefined
   /** Plays the next clip; null when there's none. */
   onNext: (() => void) | null
+  /** Shows the shuffle toggle when given. */
+  shuffle?: boolean
+  onShuffleChange?: (shuffle: boolean) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -302,6 +308,15 @@ export function VideoPlayer({
             {duration > 0 && ` / ${formatDuration(Math.floor(duration))}`}
           </span>
           <div className="flex-1" />
+          {shuffle !== undefined && onShuffleChange && (
+            <ControlButton
+              label={shuffle ? 'Shuffle on' : 'Shuffle off'}
+              pressed={shuffle}
+              onClick={() => onShuffleChange(!shuffle)}
+            >
+              <ShuffleIcon />
+            </ControlButton>
+          )}
           <button
             type="button"
             aria-pressed={settings.autoplayNext}
@@ -347,10 +362,13 @@ function Overlay({ children }: { children: ReactNode }) {
 
 function ControlButton({
   label,
+  pressed,
   onClick,
   children,
 }: {
   label: string
+  /** Makes it a toggle, dimmed while off. */
+  pressed?: boolean
   onClick: () => void
   children: ReactNode
 }) {
@@ -358,9 +376,13 @@ function ControlButton({
     <button
       type="button"
       aria-label={label}
+      aria-pressed={pressed}
       title={label}
       onClick={onClick}
-      className="grid size-8 place-items-center rounded-md text-white outline-none hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/60 [&_svg]:size-4.5"
+      className={cn(
+        'grid size-8 place-items-center rounded-md text-white outline-none hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/60 [&_svg]:size-4.5',
+        pressed === false && 'text-white/50 hover:text-white',
+      )}
     >
       {children}
     </button>

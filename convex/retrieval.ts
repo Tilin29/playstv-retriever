@@ -196,6 +196,7 @@ export const saveProfile = internalMutation({
         profileId,
         mediaStatus: 'pending',
         videoStatus: 'checking',
+        shuffleKey: Math.random(),
       })
       await flagNewClip(ctx, clipId, clip.title)
     }

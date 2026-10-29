@@ -35,3 +35,23 @@ export function writePlayerSettings(settings: PlayerSettings) {
     // Not remembered this time; the player still works.
   }
 }
+
+// Kept apart from the player's settings: it's read by the clip lists, which outlive
+// each player.
+const SHUFFLE_KEY = 'player-shuffle'
+
+export function readShuffle(): boolean {
+  try {
+    return localStorage.getItem(SHUFFLE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function writeShuffle(shuffle: boolean) {
+  try {
+    localStorage.setItem(SHUFFLE_KEY, String(shuffle))
+  } catch {
+    // Not remembered this time; shuffling still works.
+  }
+}

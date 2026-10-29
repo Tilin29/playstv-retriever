@@ -1,6 +1,7 @@
 import { usePaginatedQuery, useQuery } from 'convex/react'
 import type { FunctionArgs, FunctionReturnType } from 'convex/server'
 import { api } from '@convex/_generated/api'
+import type { Id } from '@convex/_generated/dataModel'
 import { dayEnd, dayStart } from '../lib/dates'
 
 export type FeedClip = FunctionReturnType<typeof api.clips.listFeed>['page'][number]
@@ -35,6 +36,29 @@ export function useFeed(filters: FeedFilters, sort: FeedSort) {
       sort,
     },
     { initialNumItems: FEED_PAGE_SIZE },
+  )
+}
+
+/**
+ * A random clip matching `filters` other than the `exclude`d ones, picked by `seed`
+ * (0 to 1). Undefined while loading or skipped, null when none is left.
+ */
+export function useRandomFeedClip(
+  filters: FeedFilters,
+  pick: { seed: number; exclude: Id<'clips'>[] } | null,
+) {
+  return useQuery(
+    api.clips.randomFeedClip,
+    pick
+      ? {
+          ...pick,
+          search: filters.q,
+          username: filters.user,
+          gameId: filters.game,
+          from: filters.from ? dayStart(filters.from) : undefined,
+          to: filters.to ? dayEnd(filters.to) : undefined,
+        }
+      : 'skip',
   )
 }
 

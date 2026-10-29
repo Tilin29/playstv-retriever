@@ -281,6 +281,7 @@ async function addLinkedClip(
     profileId: profile._id,
     mediaStatus: 'pending',
     videoStatus: 'checking',
+    shuffleKey: Math.random(),
   })
   await flagNewClip(ctx, clipId, clip.title)
   if (profile.clipCount !== undefined) {

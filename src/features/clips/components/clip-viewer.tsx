@@ -44,6 +44,8 @@ export function ClipViewer({
   onClose,
   onPrevious,
   onNext,
+  shuffle,
+  onShuffleChange,
 }: {
   clip: Clip | null
   owner: ClipOwner | null
@@ -52,6 +54,10 @@ export function ClipViewer({
   onPrevious: (() => void) | null
   /** Opens the clip after this one; null when this is the last. */
   onNext: (() => void) | null
+  /** Whether "next" picks a random clip instead of the following one; left out where
+   * shuffling isn't offered. */
+  shuffle?: boolean
+  onShuffleChange?: (shuffle: boolean) => void
 }) {
   useArrowKeys(clip !== null, onPrevious, onNext)
 
@@ -108,6 +114,8 @@ export function ClipViewer({
             src={videoUrl}
             poster={shownClip?.thumbnailUrl ?? undefined}
             onNext={onNext}
+            shuffle={shuffle}
+            onShuffleChange={onShuffleChange}
           />
         )}
         {videoUrl && (

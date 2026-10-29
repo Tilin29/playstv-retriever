@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { FilmIcon, SearchXIcon } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -12,11 +12,12 @@ import {
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
-import { ClipCard, ClipViewer } from '@/features/clips'
+import { ClipCard, ClipViewer, clipSteps, useShuffle } from '@/features/clips'
 import type { Id } from '@convex/_generated/dataModel'
 import {
   FEED_PAGE_SIZE,
   useFeed,
+  useRandomFeedClip,
   type FeedClip,
   type FeedFilters,
   type FeedSort,
@@ -42,9 +43,28 @@ export function ClipFeed({
     status === 'CanLoadMore' ? () => loadMore(FEED_PAGE_SIZE) : null,
   )
 
+  // Shuffled, the server picks from the whole (filtered) feed, not only the loaded pages.
+  const shuffle = useShuffle(openClipId)
+  const randomNext = useRandomFeedClip(
+    filters,
+    shuffle.shuffle && openClipId ? { seed: shuffle.stepSeed, exclude: shuffle.history } : null,
+  )
+  // Picks beyond the loaded pages are kept, so they can be shown and stepped back to.
+  const [picked, setPicked] = useState<FeedClip[]>([])
+  if (randomNext && !picked.some((clip) => clip._id === randomNext._id)) {
+    setPicked([...picked, randomNext])
+  } else if (!openClipId && picked.length > 0) {
+    setPicked([])
+  }
+  const { openClip, previous, next } = clipSteps(results, openClipId, shuffle, {
+    randomNext: randomNext ?? null,
+    extraClips: picked,
+  })
+
   const openIndex = results.findIndex((clip) => clip._id === openClipId)
   // Stepping through clips in the viewer loads the next page before it runs out.
-  const nearEnd = openIndex >= 0 && openIndex >= results.length - VIEWER_PRELOAD_CLIPS
+  const nearEnd =
+    !shuffle.shuffle && openIndex >= 0 && openIndex >= results.length - VIEWER_PRELOAD_CLIPS
   useEffect(() => {
     if (nearEnd && status === 'CanLoadMore') loadMore(FEED_PAGE_SIZE)
   }, [nearEnd, status, loadMore])
@@ -78,10 +98,6 @@ export function ClipFeed({
     )
   }
 
-  const openClip = results[openIndex] ?? null
-  const previous = openIndex > 0 ? results[openIndex - 1] : null
-  const next = openIndex >= 0 ? (results[openIndex + 1] ?? null) : null
-
   return (
     <div className="flex flex-col gap-6">
       <ul className={GRID_CLASSES}>
@@ -106,6 +122,8 @@ export function ClipFeed({
         onClose={() => onOpenClipChange(undefined)}
         onPrevious={previous && (() => onOpenClipChange(previous._id))}
         onNext={next && (() => onOpenClipChange(next._id))}
+        shuffle={shuffle.shuffle}
+        onShuffleChange={shuffle.setShuffle}
       />
     </div>
   )

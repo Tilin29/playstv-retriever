@@ -9,6 +9,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Id } from '@convex/_generated/dataModel'
 import type { Clip } from '../hooks/use-clips'
+import { clipSteps, useShuffle } from '../hooks/use-clip-steps'
 import { useJustLostClips } from '../hooks/use-just-lost-clips'
 import { isUnrecoverable, isWatchable } from '../lib/status'
 import { ClipCard } from './clip-card'
@@ -30,6 +31,15 @@ export function ClipGrid({
   onOpenClipChange: (clipId: Id<'clips'> | undefined) => void
 }) {
   const justLostIds = useJustLostClips(clips)
+  // Clips still being checked stay with the recoverable ones until the archive answers,
+  // and a clip that was just found missing lingers there briefly so the change is seen.
+  const isLost = (clip: Clip) => isUnrecoverable(clip) && !justLostIds.has(clip._id)
+  const recoverable = (clips ?? []).filter((clip) => !isLost(clip))
+  const unrecoverable = (clips ?? []).filter(isLost)
+  // The viewer steps through the watchable clips in the order they're shown.
+  const watchable = recoverable.filter(isWatchable)
+  const shuffle = useShuffle(openClipId)
+  const { openClip, previous, next } = clipSteps(watchable, openClipId, shuffle)
 
   if (clips === undefined) {
     return (
@@ -57,17 +67,6 @@ export function ClipGrid({
     )
   }
 
-  // Clips still being checked stay with the recoverable ones until the archive answers,
-  // and a clip that was just found missing lingers there briefly so the change is seen.
-  const isLost = (clip: Clip) => isUnrecoverable(clip) && !justLostIds.has(clip._id)
-  const recoverable = clips.filter((clip) => !isLost(clip))
-  const unrecoverable = clips.filter(isLost)
-  // The viewer steps through the watchable clips in the order they're shown.
-  const watchable = recoverable.filter(isWatchable)
-  const openIndex = watchable.findIndex((clip) => clip._id === openClipId)
-  const openClip = watchable[openIndex] ?? null
-  const previous = openIndex > 0 ? watchable[openIndex - 1] : null
-  const next = openIndex >= 0 ? (watchable[openIndex + 1] ?? null) : null
   const sectionProps = { justLostIds, onOpen: (clip: Clip) => onOpenClipChange(clip._id) }
 
   return (
@@ -80,6 +79,8 @@ export function ClipGrid({
         onClose={() => onOpenClipChange(undefined)}
         onPrevious={previous && (() => onOpenClipChange(previous._id))}
         onNext={next && (() => onOpenClipChange(next._id))}
+        shuffle={shuffle.shuffle}
+        onShuffleChange={shuffle.setShuffle}
       />
     </div>
   )

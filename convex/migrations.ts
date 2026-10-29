@@ -190,3 +190,32 @@ export const fixYearlessUploadDates = internalMutation({
     return null
   },
 })
+
+const SHUFFLE_KEY_BATCH_SIZE = 200
+
+/**
+ * Gives clips stored before the feed could be shuffled their `shuffleKey`. Until it has
+ * run, those clips are only shuffled in when few clips match the filters. Run once with
+ * `npx convex run migrations:backfillShuffleKeys`; it schedules itself until done.
+ */
+export const backfillShuffleKeys = internalMutation({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, { cursor }) => {
+    const { page, isDone, continueCursor } = await ctx.db
+      .query('clips')
+      .paginate({ numItems: SHUFFLE_KEY_BATCH_SIZE, cursor: cursor ?? null })
+
+    for (const clip of page) {
+      if (clip.shuffleKey === undefined) {
+        await ctx.db.patch('clips', clip._id, { shuffleKey: Math.random() })
+      }
+    }
+
+    if (!isDone) {
+      await ctx.scheduler.runAfter(0, internal.migrations.backfillShuffleKeys, {
+        cursor: continueCursor,
+      })
+    }
+    return null
+  },
+})
