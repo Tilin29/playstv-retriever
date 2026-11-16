@@ -15,6 +15,7 @@ import type * as clipLinks from "../clipLinks.js";
 import type * as clips from "../clips.js";
 import type * as crons from "../crons.js";
 import type * as games from "../games.js";
+import type * as health from "../health.js";
 import type * as migrations from "../migrations.js";
 import type * as model_admin from "../model/admin.js";
 import type * as model_archive from "../model/archive.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   clips: typeof clips;
   crons: typeof crons;
   games: typeof games;
+  health: typeof health;
   migrations: typeof migrations;
   "model/admin": typeof model_admin;
   "model/archive": typeof model_archive;

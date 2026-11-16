@@ -1,6 +1,7 @@
 import { Link, Outlet, createRootRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { AppShell } from '@/components/layout/app-shell'
+import { ServiceStatusGate } from '@/features/service-status'
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -11,7 +12,9 @@ function RootLayout() {
   return (
     <>
       <AppShell>
-        <Outlet />
+        <ServiceStatusGate>
+          <Outlet />
+        </ServiceStatusGate>
       </AppShell>
       <TanStackRouterDevtools position="bottom-right" />
     </>

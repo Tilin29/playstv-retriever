@@ -31,6 +31,17 @@ One-time setup:
 For Vercel preview deployments, add a Convex **Preview** deploy key as
 `CONVEX_DEPLOY_KEY` for the Preview environment; each preview gets its own Convex backend.
 
+### When the Convex plan's monthly limits run out
+
+Convex disables the deployment until the limits reset, and every call fails with a bare
+"Server Error". The app notices because `health:ping` (a query that can't fail on its own)
+errors, and shows a "back next month" notice in place of every page
+(`src/features/service-status`). It switches back on its own once the deployment is up.
+
+To show the notice regardless (e.g. if a deploy can't go out while the deployment is
+disabled), set `VITE_SERVICE_PAUSED=true` in Vercel's environment variables and redeploy.
+Remove it afterwards. The notice can be previewed at `/unavailable`.
+
 ## Architecture
 
 Feature-based frontend, layered Convex backend.

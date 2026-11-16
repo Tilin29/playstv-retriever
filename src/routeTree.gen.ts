@@ -14,6 +14,7 @@ import { Route as AdminManageRouteImport } from './routes/admin-manage'
 import { Route as FeedRouteImport } from './routes/feed'
 import { Route as LookupRouteImport } from './routes/lookup'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as UnavailableRouteImport } from './routes/unavailable'
 import { Route as UUsernameRouteImport } from './routes/u.$username'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +42,11 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UnavailableRoute = UnavailableRouteImport.update({
+  id: '/unavailable',
+  path: '/unavailable',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const UUsernameRoute = UUsernameRouteImport.update({
   id: '/u/$username',
   path: '/u/$username',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/feed': typeof FeedRoute
   '/lookup': typeof LookupRoute
   '/terms': typeof TermsRoute
+  '/unavailable': typeof UnavailableRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/feed': typeof FeedRoute
   '/lookup': typeof LookupRoute
   '/terms': typeof TermsRoute
+  '/unavailable': typeof UnavailableRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRoutesById {
@@ -70,14 +78,28 @@ export interface FileRoutesById {
   '/feed': typeof FeedRoute
   '/lookup': typeof LookupRoute
   '/terms': typeof TermsRoute
+  '/unavailable': typeof UnavailableRoute
   '/u/$username': typeof UUsernameRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/admin-manage' | '/feed' | '/lookup' | '/terms' | '/u/$username'
+    | '/'
+    | '/admin-manage'
+    | '/feed'
+    | '/lookup'
+    | '/terms'
+    | '/unavailable'
+    | '/u/$username'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin-manage' | '/feed' | '/lookup' | '/terms' | '/u/$username'
+  to:
+    | '/'
+    | '/admin-manage'
+    | '/feed'
+    | '/lookup'
+    | '/terms'
+    | '/unavailable'
+    | '/u/$username'
   id:
     | '__root__'
     | '/'
@@ -85,6 +107,7 @@ export interface FileRouteTypes {
     | '/feed'
     | '/lookup'
     | '/terms'
+    | '/unavailable'
     | '/u/$username'
   fileRoutesById: FileRoutesById
 }
@@ -94,6 +117,7 @@ export interface RootRouteChildren {
   FeedRoute: typeof FeedRoute
   LookupRoute: typeof LookupRoute
   TermsRoute: typeof TermsRoute
+  UnavailableRoute: typeof UnavailableRoute
   UUsernameRoute: typeof UUsernameRoute
 }
 
@@ -134,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/unavailable': {
+      id: '/unavailable'
+      path: '/unavailable'
+      fullPath: '/unavailable'
+      preLoaderRoute: typeof UnavailableRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/u/$username': {
       id: '/u/$username'
       path: '/u/$username'
@@ -150,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   FeedRoute: FeedRoute,
   LookupRoute: LookupRoute,
   TermsRoute: TermsRoute,
+  UnavailableRoute: UnavailableRoute,
   UUsernameRoute: UUsernameRoute,
 }
 export const routeTree = rootRouteImport
